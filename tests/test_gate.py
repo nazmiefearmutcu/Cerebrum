@@ -30,6 +30,24 @@ def test_local_learning_raises_win_prob_of_rewarded_module():
         g.learn(M=1.0)
     assert g.G[1,0] > G1_before                          # rewarded winner's Go weight increases (scalar M)
 
+def test_lam_g_decays_gate_weights_toward_init():
+    g = BasalGangliaGate(n_modules=3, k_slots=1, cfg=GRAILConfig(eta_w=0.0, lam_g=0.5), seed=0)
+    g.N[:] = 1.0                                          # push NoGo away from its 0 init
+    g.select(np.array([1.0, 1.0, 1.0]), SeededRNG(0), T_gate=0.5)
+    g.learn(M=0.0)                                        # eta*M=0 -> only the lam_g decay acts
+    assert np.all(g.N < 1.0)                              # NoGo decays toward its 0 init
+    assert np.all(np.abs(g.G - 0.5) <= 0.1 + 1e-9)       # Go pulled within the decayed range of its 0.5 init
+
+def test_reward_aware_homeostasis_spares_rewarded_wins():
+    g = BasalGangliaGate(n_modules=2, k_slots=1, cfg=GRAILConfig(), seed=0)
+    g.select(np.array([2.0, 0.1]), SeededRNG(0), T_gate=0.2)
+    g.homeostasis(M=3.0)                                  # rewarded win -> winner NOT penalized as a hog
+    g2 = BasalGangliaGate(n_modules=2, k_slots=1, cfg=GRAILConfig(), seed=0)
+    g2.select(np.array([2.0, 0.1]), SeededRNG(0), T_gate=0.2)
+    g2.homeostasis(M=None)                                # plain anti-hog penalizes the winner
+    winner = int(np.argmax(g._z[:, 0]))
+    assert g.theta[winner] > g2.theta[winner]             # reward-aware spares the correct winner
+
 def test_homeostasis_raises_excitability_of_starved_module():
     g = BasalGangliaGate(n_modules=3, k_slots=1, cfg=GRAILConfig(), seed=4)
     rng = SeededRNG(1)

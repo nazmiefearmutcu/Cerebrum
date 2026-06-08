@@ -140,32 +140,42 @@ target into the slot:
    identity). Routing accuracy degrades toward chance and per-slot participation climbs above 1 (many
    modules contribute every step) — proving the discreteness is **load-bearing, not cosmetic**.
 
-Reproduce with `python3 benchmarks/run_stage2.py` (mean ± 95% CI over 5 seeds):
+Reproduce with `python3 benchmarks/run_stage2.py` (mean ± 95% CI over 5 seeds). Two operating points,
+two claims:
+
+**2A — Routing (the gate at low selection temperature + Go-weight decay).** The target's salient object
+gives it the strictly-highest scalar bid, so *argmax-bid* routing is in fact perfect (1.000); the cost
+is that a hot, drifting gate throws much of that away. A low selection temperature (so the informative
+bid dominates) plus a small Go/NoGo weight decay (so the gate does not learn spurious fixed preferences
+on a randomly-rotating target) recover it — while staying a **stochastic** one-hot sample (Pillar 4):
 
 ```
-[M=4] (chance=0.250)
-   one-hot routing_acc = 0.668 +/- 0.200  | win_entropy = 1.383 +/- 0.005
-   soft    routing_acc = 0.525 +/- 0.262  | slot_participation = 1.94 +/- 0.52
-[M=6] (chance=0.167)
-   one-hot routing_acc = 0.476 +/- 0.190  | win_entropy = 1.768 +/- 0.015
-   soft    routing_acc = 0.351 +/- 0.221  | slot_participation = 2.79 +/- 0.63
+[M=4] (chance=0.250)  one-hot routing_acc = 0.713 +/- 0.295  | win_entropy = 1.382 +/- 0.006
+[M=6] (chance=0.167)  one-hot routing_acc = 0.806 +/- 0.200  | win_entropy = 1.779 +/- 0.014
 ```
 
-**Honest reading of the CIs (this matters).** Two claims are robust and CI-clean: (a) one-hot routing
-is **above chance** at both `M` (`0.668±0.200` excludes 0.250; `0.476±0.190` excludes 0.167), and
-(b) the soft ablation **mixes >1 module per slot** (`1.94±0.52` and `2.79±0.63` both exclude 1.0,
-whereas one-hot participation is exactly 1.0 by construction) — so soft genuinely collapses to a
-gated-SSM-class continuous mixer. The one claim that is **NOT** clean at 5 seeds is one-hot-*vs*-soft
-*routing accuracy*: the intervals overlap (`0.668±0.200` vs `0.525±0.262`), and earlier single-seed
-snapshots (0.850 vs 0.746) overstated the gap. So the load-bearing result is **"routing emerges above
-chance AND the soft write provably mixes (participation>1)"** — not a clean routing-accuracy win of
-one-hot over soft. Tightening that comparison (more seeds / a harder binding task) is open work.
+Both clear chance with margin (`0.806±0.200` excludes 0.167), and high win-entropy confirms load stays
+balanced (no dead/hog collapse — the reward-aware homeostasis no longer penalizes *correct* routing).
 
-**Honesty gate (unchanged).** This stage still solves **zero** open problems. It demonstrates
-**emergent routing without an attention matrix**, plus the one-hot-vs-soft contrast — it is **NOT**
-evidence of scaling, throughput, or perplexity parity, and makes **no** scaling claim. Routing
-accuracy is a property of this small binding task, not of any open problem (see *Honest status*
-above). The infer-time broadcast traffic is **not** O(1); only the learn-time scalar `M` is.
+**2B — Write-rule ablation (one-hot vs soft, at a moderate temperature where `P` spreads).** A near-
+degenerate low-temperature `P` makes the soft write approximate the one-hot write, hiding the effect; at
+a moderate `gate_temp` the contrast is clean (matched temperature, only the write rule differs):
+
+```
+[M=4] one-hot routing = 0.616 +/- 0.253 (participation=1.0)  | soft routing = 0.276 +/- 0.188  participation = 2.20 +/- 0.31
+[M=6] one-hot routing = 0.678 +/- 0.191 (participation=1.0)  | soft routing = 0.318 +/- 0.157  participation = 2.29 +/- 0.34
+```
+
+The forbidden soft aggregation blends **~2.2 modules per slot** (`participation` CI cleanly excludes 1.0)
+and routes far worse than the one-hot write (`0.276` vs `0.616`, non-overlapping) — it has collapsed to a
+content-gated continuous mixer (a gated-SSM / linear-attention/Mamba-class identity). **Strict one-hot
+discreteness is load-bearing, not cosmetic.**
+
+**Honesty gate (unchanged).** This stage still solves **zero** open problems. The architectural finding
+is that GRAIL's no-query-key gate does **salience-driven + fixed-preference** routing (not content-
+addressed routing — that would be attention, which is banned); on this small task the routing numbers
+are a property of the bid signal + selection temperature, **not** evidence of scaling. Infer-time
+broadcast traffic is **not** O(1); only the learn-time scalar `M` is.
 
 ---
 

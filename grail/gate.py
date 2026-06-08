@@ -36,7 +36,24 @@ class BasalGangliaGate:
         e = (self._z - self._P) * self._bid[:, None]                    # local 3-factor eligibility
         self.G += eta*M*e
         self.N += -eta*M*e                                              # NoGo opponent (opposite sign)
+        # Synaptic weight decay toward init (local homeostatic regularization). Without a STABLE
+        # per-module target, reward-driven Go drift learns spurious preferences that override the
+        # informative scalar bid; decay keeps the gate "trusting the bid" unless reward consistently
+        # supports a preference. lam_g=0 -> off (unchanged behavior).
+        if self.cfg.lam_g > 0.0:
+            self.G += self.cfg.lam_g * (0.5 - self.G)                   # init Go mean
+            self.N += self.cfg.lam_g * (0.0 - self.N)                   # init NoGo mean
 
-    def homeostasis(self, gamma_up=0.02, gamma_dn=0.05):
+    def homeostasis(self, M=None, gamma_up=0.02, gamma_dn=0.05):
+        """Dead-expert load balancing as per-neuron metabolic homeostasis: excitability theta rises for
+        modules that win nothing (anti-dead-expert) and falls for winners (anti-hog). When the scalar
+        neuromodulator M is supplied the win-penalty is REWARD-AWARE — a REWARDED win (M>0, i.e. correct
+        routing) is NOT treated as hogging — so homeostasis stops fighting correct routing (spec FM5b).
+        M is a scalar (BAN-2 safe); M=None keeps the plain anti-hog behavior."""
         wins = np.minimum(self._z.sum(axis=1), 1.0)
-        self.theta += gamma_up*(1.0 - wins) - gamma_dn*wins             # rises on loss, falls on win
+        if M is None:
+            hog = 1.0
+        else:
+            assert_scalar_M(M)
+            hog = 1.0/(1.0 + np.exp(2.0*float(M)))     # M>0 (rewarded) -> ~0 penalty; M<=0 (hog) -> ~1
+        self.theta += gamma_up*(1.0 - wins) - gamma_dn*wins*hog         # rises on loss, falls on un-rewarded win

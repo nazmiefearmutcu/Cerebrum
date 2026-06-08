@@ -44,7 +44,8 @@ class GRAILWorkspaceNet:
         # 2) gate: bid (scalar own-error) -> stochastic one-hot select -> write -> broadcast
         pi = np.array([float(np.mean(mod.Pi[-1])) for mod in self.modules])
         bids = self.gate.bid(err_sq=err_sq, pi=pi)
-        z = self.gate.select(bids, self.rng, T_gate=self.nm.t_gate(max(reward,1e-3)))
+        T_gate = self.cfg.gate_temp if self.cfg.gate_temp > 0.0 else self.nm.t_gate(max(reward, 1e-3))
+        z = self.gate.select(bids, self.rng, T_gate=T_gate)
         self.workspace.write(z, reads)
         # 3) learn: scalar M gates module plasticity + gate learning + homeostasis
         M = self.nm.update(reward); assert_scalar_M(M); self.counters.record_global_learn(1)
@@ -56,5 +57,5 @@ class GRAILWorkspaceNet:
                                           eta=self.cfg.eta_w/self.cfg.tau_w)
                 mod.B[l] += (1.0/self.cfg.tau_b)*feedback_update(mod.B[l], a_up=mod.x[l+1], eps=mod.eps[l], cfg=self.cfg)
                 mod.Pi[l] = precision_update(mod.Pi[l], eps_sq=mod.eps[l]**2, cfg=self.cfg)
-        self.gate.learn(M=M); self.gate.homeostasis()
+        self.gate.learn(M=M); self.gate.homeostasis(M=M)   # reward-aware homeostasis (spec FM5b)
         return z, M

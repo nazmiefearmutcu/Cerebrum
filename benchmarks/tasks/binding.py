@@ -3,14 +3,18 @@ from grail.config import GRAILConfig
 from grail.network2 import GRAILWorkspaceNet
 
 def run_binding(n_modules=4, k_slots=1, trials=400, seed=0,
-                explore_reward=2.0, reward_scale=5.0):
+                explore_reward=2.0, reward_scale=5.0, gate_temp=0.1, lam_g=0.05):
     # Worker-note lever: the scalar own-error bid is already strongly discriminative (the salient
     # target settles to higher ||eps||^2 -> higher bid). The ONLY thing flattening selection is a
     # high T_gate. We LOWER T_gate via reward scaling (t_gate = 1/(|M|+eps)): a non-trivial
     # explore_reward shrinks the exploration-pass temperature so the informative bid drives selection,
     # and a scaled learning reward sharpens the Go weights. No query-key term, bid stays scalar own-error.
     rng = np.random.default_rng(seed)
-    cfg = GRAILConfig(dims=(n_modules, n_modules), n_settle=6, seed=seed)
+    # lam_g (Go/NoGo weight decay) prevents spurious preference drift on the random target; gate_temp
+    # lowers the selection temperature so the informative scalar bid dominates (still a stochastic
+    # one-hot sample). Together these recover most of the near-perfect bid-salience routing the
+    # high-temperature drifting gate was throwing away — without any query-key term.
+    cfg = GRAILConfig(dims=(n_modules, n_modules), n_settle=6, seed=seed, lam_g=lam_g, gate_temp=gate_temp)
     net = GRAILWorkspaceNet(n_modules, k_slots, slice_dim=n_modules, cfg=cfg)
     wins_per_module = np.zeros(n_modules); correct = 0
     for t in range(trials):

@@ -30,6 +30,11 @@ class GRAILConfig:
     grid_lambda0: float = 4.0        # base spatial period
     grid_ratio: float = 1.42         # geometric module scaling
     grid_eta_bind: float = 1.0       # content-store binding rate
+    # gate / workspace (Stage 2)
+    lam_g: float = 0.0        # gate Go/NoGo weight decay toward init (0 = off; >0 prevents spurious
+                              # preference drift when there is no stable per-module target to learn)
+    gate_temp: float = 0.0    # fixed gate selection temperature (0 = unset -> use neuromodulator 1/M);
+                              # a low value lets the informative scalar bid dominate (still stochastic)
     # metaplasticity (Stage 3)
     tau_S: float = 20.0       # surprise-baseline EMA timescale
     tau_c: float = 300.0      # consolidation-reserve timescale (slow)
