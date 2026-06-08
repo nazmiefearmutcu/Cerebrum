@@ -2,7 +2,7 @@ import numpy as np
 from .pc_core import PCAreas
 from .grid_head import GridHead
 from .neuromod import Neuromodulator
-from .plasticity import Eligibility, weight_update, precision_update, feedback_update
+from .plasticity import Eligibility, weight_update, precision_update, feedback_update, feedback_update_kp
 from .counters import Counters
 from .rng import SeededRNG
 from .invariants import assert_scalar_M
@@ -49,12 +49,20 @@ class GRAILCore:
         self.counters.record_global_learn(1)
         for l in range(self.pc.L-1):
             self.elig[l].step(a_pre=self.pc.x[l+1])
+            eta_w = self.cfg.eta_w/self.cfg.tau_w
             dW = weight_update(M=M, theta=np.ones_like(self.pc.W[l]),
                                Pi_post=self.pc.Pi[l], eps_post=self.pc.eps[l],
-                               elig=self.elig[l].value, eta=self.cfg.eta_w/self.cfg.tau_w)
-            self.pc.W[l] += dW
-            self.pc.B[l] += (1.0/self.cfg.tau_b)*feedback_update(self.pc.B[l],
-                               a_up=self.pc.x[l+1], eps=self.pc.eps[l], cfg=self.cfg)
+                               elig=self.elig[l].value, eta=eta_w)
+            if self.cfg.align_feedback:
+                # Kolen-Pollack: matched decay on W + transposed same product on B (-> B.T -> W).
+                self.pc.W[l] += dW - self.cfg.lam_kp*self.pc.W[l]
+                self.pc.B[l] += feedback_update_kp(self.pc.B[l], M=M, Pi_post=self.pc.Pi[l],
+                                   eps_post=self.pc.eps[l], elig=self.elig[l].value,
+                                   eta=eta_w, lam_kp=self.cfg.lam_kp)
+            else:
+                self.pc.W[l] += dW
+                self.pc.B[l] += (1.0/self.cfg.tau_b)*feedback_update(self.pc.B[l],
+                                   a_up=self.pc.x[l+1], eps=self.pc.eps[l], cfg=self.cfg)
             self.pc.Pi[l] = precision_update(self.pc.Pi[l], eps_sq=self.pc.eps[l]**2, cfg=self.cfg)
         return M
 

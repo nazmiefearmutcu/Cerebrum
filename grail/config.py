@@ -22,6 +22,13 @@ class GRAILConfig:
     eta_w: float = 0.02              # weight learning rate scale
     eta_b: float = 0.01              # feedback weight learning rate
     lam_b: float = 1e-3              # feedback weight decay
+    # --- Kolen-Pollack feedback alignment (OPT-IN; default OFF = behavior unchanged) ---
+    align_feedback: bool = False     # if True, B is driven toward W.T by a matched LOCAL rule
+                                     # (KP): B and W receive the SAME M-gated pre*post product
+                                     # (transposed) with a MATCHED decay, so (W - B.T) -> 0
+                                     # WITHOUT ever reading/copying W.T (no weight transport).
+    lam_kp: float = 1e-2             # matched symmetric weight decay applied to BOTH W and B
+                                     # ONLY when align_feedback=True (the KP coupling term).
     Pi0: float = 1.0                 # precision prior
     sigma0: float = 1.0              # precision floor variance
     kappa_pi: float = 1.0            # precision learning gain

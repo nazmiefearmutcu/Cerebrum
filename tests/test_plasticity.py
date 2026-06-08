@@ -34,3 +34,46 @@ def test_feedback_update_is_local_outer_product():
     B = np.zeros((2,3))
     dB = feedback_update(B, a_up=a_up, eps=eps, cfg=c)
     assert np.allclose(dB, np.outer(a_up, eps))    # uses only local a_up, eps (no W, no transpose)
+
+
+def test_kp_feedback_update_is_transpose_of_forward_product():
+    """KP rule: B's increment must be the EXACT transpose of W's four-factor increment so that
+    (W - B.T) shrinks. Verified with matched eta, M and zero decay -> dB == (dW).T."""
+    from grail.plasticity import weight_update, feedback_update_kp
+    Pi = np.array([2.0, 0.5, 1.0]); eps = np.array([0.3, -0.4, 0.1])   # post, len = d[l] = 3
+    elig = np.array([1.0, 0.5])                                        # pre,  len = d[l+1] = 2
+    dW = weight_update(M=1.0, theta=np.ones((3, 2)), Pi_post=Pi, eps_post=eps, elig=elig, eta=0.7)
+    dB = feedback_update_kp(np.zeros((2, 3)), M=1.0, Pi_post=Pi, eps_post=eps,
+                            elig=elig, eta=0.7, lam_kp=0.0)
+    assert np.allclose(dB, dW.T)          # B gets the exact transpose of W's local product
+
+
+def test_kp_feedback_update_uses_no_weight_transport():
+    """KP rule reads only LOCAL signals (M, Pi_post*eps_post, elig); never W or W.T."""
+    import inspect
+    from grail.plasticity import feedback_update_kp
+    sig = set(inspect.signature(feedback_update_kp).parameters)
+    assert "W" not in sig and "W_T" not in sig and "Wt" not in sig   # no weight argument at all
+
+
+def test_kp_drives_B_toward_W_transpose():
+    """Under repeated identical local pre/post and a MATCHED decay applied to both, B.T -> W
+    (Kolen-Pollack). Start B,W mismatched; iterate the coupled update; cosine(B.T, W) -> ~1."""
+    from grail.plasticity import weight_update, feedback_update_kp
+    rng = np.random.default_rng(0)
+    W = 0.5 * rng.standard_normal((4, 3))         # (d[l], d[l+1])
+    B = 0.5 * rng.standard_normal((3, 4))         # (d[l+1], d[l]) -- independent, mismatched
+    Pi = np.array([1.0, 1.0, 1.0, 1.0]); eps = np.array([0.4, -0.3, 0.2, 0.1])
+    elig = np.array([0.6, -0.2, 0.5]); eta = 0.05; lam = 0.02
+
+    def cos(a, b):
+        a = a.ravel(); b = b.ravel()
+        return float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+    c0 = cos(B.T, W)
+    for _ in range(2000):
+        dW = weight_update(M=1.0, theta=np.ones_like(W), Pi_post=Pi, eps_post=eps, elig=elig, eta=eta)
+        W = W + dW - lam * W
+        B = B + feedback_update_kp(B, M=1.0, Pi_post=Pi, eps_post=eps, elig=elig, eta=eta, lam_kp=lam)
+    c1 = cos(B.T, W)
+    assert c1 > 0.99 and c1 > c0      # B.T converges to W (alignment learned, not transported)
