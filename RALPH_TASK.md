@@ -2,10 +2,10 @@
 
 **Mission:** Push GRAIL (`/Users/nazmi/grail`, 89 tests green) onto HARDER tasks and LARGER scales to **map honestly where its brain-axis advantages hold and where they break**. This directly attacks the central UNPROVEN bet (spec §7 OP1: no fully-local method has matched backprop at scale) and the spec's own flagged failure modes (esp. **FM7**: frozen commuting rotation-blocks may fail on non-metric / asymmetric / abstract relational graphs). The deliverable is **honest evidence of the frontier**, NOT a "scaling solved" claim.
 
-## How this loop runs (speed + safety)
-- **Each iteration, do the work via a BACKGROUND Workflow** (multi-agent, fast) — NOT slow single-threaded inline edits.
-- **Concurrency rule (critical):** if a GRAIL background workflow is still running (check `/workflows` / TaskList), do **NOT** start another and do **NOT** edit the repo this turn — briefly note progress and yield. Only launch the next workflow when none is running. Never have two writers on the repo.
-- After a workflow completes: independently verify (run suite + re-run the new benchmark + ban-audit), integrate/commit if needed, update README, then launch the next item.
+## How this loop runs (speed + safety — learned the hard way)
+- **Each iteration, do the heavy work via PARALLEL `Agent` subagents that COMPLETE WITHIN THE TURN** (fast multi-agent, but synchronous). Do **NOT** use background Workflows inside this loop — the ralph stop-hook re-fires on every turn-end and would race a still-running background workflow (concurrent repo writers + wasted no-op yield turns).
+- **Concurrency rule (critical):** the controller (you) serializes all git: subagents CREATE/EDIT distinct new files and REPORT numbers, but do **NOT** commit and do **NOT** edit shared files (README, shared run scripts). After the subagents return, YOU verify (full suite + re-run benchmark + ban-audit), update README, and commit — one writer.
+- Give each parallel subagent a DISTINCT file set so they never collide.
 
 ## ABSOLUTE BANS (unchanged — a violation invalidates the project)
 No backprop/autograd/torch/jax in `grail/` (only in labeled `benchmarks/baselines/`); no weight transport (`W.T`); scalar `M` only; strict one-hot workspace write in `grail/`; exogenous-only `z_act`; the metaplastic fuse uses ONLY local `Π/ε/eligibility` (no Fisher/anchors/task-boundary — those only in `ewc.py`); success only on sample-efficiency / energy-ops / continual-learning, never throughput/perplexity/latency.
