@@ -259,6 +259,82 @@ replay/iid/Fisher/anchors**, which is the only success axis claimed here.
 
 ---
 
+## Scaling probe (honest, exploratory)
+
+> **This is an UNPROVEN BET, not a result.** Spec §7 open-problem #1 is explicit: *no
+> fully-local, transport-relaxed, noisy-sampling method has matched backprop on hard tasks,
+> and with `B ≠ Wᵀ` the rule does not even provably recover the true gradient at the fixed
+> point.* The probe below runs the existing tasks at **larger sizes** and reports, with 95%
+> CIs over 8 seeds, **exactly where the brain-axis advantages hold and where they break**. We
+> make **no "scaling solved" claim.** Reproduce with `python3 benchmarks/run_scaling.py`.
+
+### (a) Task-1 few-shot graph-completion on bigger gridworlds / larger vocab
+
+Held-out edge-completion accuracy (mean ± 95% CI, 8 seeds; GRAIL-grid vs flat-prior vs the
+backprop-MLP comparator):
+
+| size | K | GRAIL-grid | flat-prior | backprop-MLP | chance |
+|---|---|---|---|---|---|
+| 4×4 v5  | 5  | **0.579 ± 0.187** | 0.161 ± 0.116 | 0.203 ± 0.165 | 0.200 |
+| 4×4 v5  | 20 | **0.390 ± 0.085** | 0.228 ± 0.042 | 0.262 ± 0.116 | 0.200 |
+| 6×6 v8  | 5  | **0.690 ± 0.179** | 0.141 ± 0.162 | 0.178 ± 0.189 | 0.125 |
+| 6×6 v8  | 20 | **0.394 ± 0.121** | 0.156 ± 0.069 | 0.167 ± 0.064 | 0.125 |
+| 8×8 v10 | 5  | **0.584 ± 0.149** | 0.068 ± 0.075 | 0.080 ± 0.079 | 0.100 |
+| 8×8 v10 | 20 | **0.392 ± 0.070** | 0.126 ± 0.059 | 0.147 ± 0.055 | 0.100 |
+
+**Verdict (honest):** the grid-prior advantage **does not shrink as the graph grows — it
+holds, and the mean margin over the best baseline actually *grows* with grid size** (≈+0.38 at
+4×4 K=5 → ≈+0.50 at 8×8 K=5), because flat-prior and the MLP both decay toward chance as the
+graph gets larger while GRAIL still path-integrates unobserved edges. The advantage is **CI-
+separated at every K on 8×8** and at low K on 6×6/4×4. What **shrinks is the margin as K rises**
+(more observations let the baselines memorise more walked edges), so on the *small* 4×4 graph at
+K=20 the CIs overlap — that is the expected "few-shot edge erodes with more data" boundary, **not**
+a failure of the prior at scale. **Holds to 8×8 / vocab 10; few-shot edge narrows as K→20 on small
+graphs.** (Still a small regime overall — no large-scale claim.)
+
+### (b) Catastrophic forgetting with MORE sequential tasks (A→B→C→D→E)
+
+Forgetting of the **first** task A (rise in its reconstruction error) measured after **each**
+further task is learned, fuse vs always-plastic (mean ± 95% CI, 8 seeds; lower = better):
+
+| after… | GRAIL-fuse | always-plastic |
+|---|---|---|
+| +1 task (B)         | **0.029 ± 0.031** | 0.435 ± 0.142 |
+| +2 tasks (B,C)      | **0.055 ± 0.039** | 0.557 ± 0.178 |
+| +3 tasks (B,C,D)    | **0.093 ± 0.052** | 0.531 ± 0.150 |
+| +4 tasks (B,C,D,E)  | **0.107 ± 0.055** | 0.492 ± 0.111 |
+
+**Verdict (honest):** the surprise-gated fuse **still protects the first task after four more
+sequential tasks** — forgetting of A is **CI-separated below always-plastic at every step**, while
+the fuse **still learns the last task** (last-task error drop 0.304 ± 0.078). First-task forgetting
+**does creep up** (0.03 → 0.11 across +4 tasks) as the shared weights are repeatedly rewritten —
+honest graceful degradation, not a cliff — and the consolidation reserve saturates (`c̄ ≈ 0.93`).
+**Holds through A→…→E with the SAME fixed knob set (no per-task retuning).** No stability proof; a
+much longer stream or a harder per-task overlap could still break it.
+
+### (c) Deeper PC hierarchies on Task-1 (3–4 areas)
+
+| depth (areas) | K=5 | K=10 | K=20 |
+|---|---|---|---|
+| 2 | 0.690 ± 0.179 | 0.503 ± 0.143 | 0.394 ± 0.121 |
+| 3 | 0.690 ± 0.179 | 0.503 ± 0.143 | 0.394 ± 0.121 |
+| 4 | 0.690 ± 0.179 | 0.503 ± 0.143 | 0.394 ± 0.121 |
+
+**Verdict (honest):** adding PC areas has **no effect** on Task-1 — the numbers are identical
+across depth. This is **mechanism-explained, not a bug**: Task-1 completion is driven by the
+grid **HEAD** (path-integrated content store), so stacking more error-neuron areas adds inference
+depth that the completion readout never consults. Deeper hierarchy **neither helps nor hurts** here;
+a task whose structure actually requires hierarchical abstraction would be needed to probe whether
+depth helps — that is future work, not a claim.
+
+**Bottom line:** on these axes the brain-favorable advantages **hold at the larger sizes tested**
+(grid-prior sample efficiency strengthens with graph size; fuse forgetting-protection survives five
+sequential tasks), and **break / are null** exactly where expected (few-shot margin erodes with more
+data on small graphs; depth is inert for a grid-head task). This is **honest evidence of where it
+holds and breaks — not a scaling-solved claim.**
+
+---
+
 ## Task-3 result — energy / operations (success axis 2)
 
 GRAIL is event-driven: an error neuron only "spikes" (and drives its synapses) when its prediction
@@ -313,6 +389,7 @@ grail/grail/        # the GRAIL package (pure NumPy, no autograd)
   unified.py        # GRAILNet — ONE network exercising ALL FIVE pillars: grid HEAD path-integration (exogenous) → PC-module settling under grid top-down + workspace broadcast → scalar-bid one-hot gate/write/broadcast → metaplastic-θ-gated four-factor module plasticity + gate learning + reward-aware homeostasis, all gated by the single scalar M; composes the staged modules (no logic duplicated)
 grail/tests/        # unit + invariant + load-bearing tests (incl. gate/workspace/network2/stage2-smoke, metaplasticity, stage3-smoke)
 grail/benchmarks/   # Task-1 + Stage-2 binding task + Stage-3 continual A→B→C; baselines (flat-prior, backprop-MLP, soft-mixer ablation, EWC-analog); run_task1.py, run_stage2.py, run_stage3.py
+  run_scaling.py    # I6 honest scaling probe: Task-1 on bigger grids/vocab, forgetting over A→B→C→D→E, deeper PC hierarchies — reports per-axis HOLDS/PARTIAL/BREAKS with CIs (UNPROVEN bet, no scaling-solved claim)
 ```
 
 ---
@@ -325,6 +402,7 @@ python3 -m pytest -q            # full test suite (no external deps beyond numpy
 python3 benchmarks/run_task1.py    # print the Task-1 (grid prior / sample efficiency) result table
 python3 benchmarks/run_stage2.py   # print the Stage-2 (emergent routing + one-hot-vs-soft) result table
 python3 benchmarks/run_stage3.py   # print the Stage-3 (catastrophic-forgetting: fuse vs θ≡1 vs EWC) result table
+python3 benchmarks/run_scaling.py  # I6 honest scaling probe: bigger grids, A→B→C→D→E forgetting, deeper hierarchies (per-axis HOLDS/BREAKS w/ CIs)
 ```
 
 Python 3.11+, NumPy 2.x. No other dependencies. Nothing to install for the package itself.
