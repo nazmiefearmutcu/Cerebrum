@@ -3,7 +3,7 @@ from .pc_core import PCAreas
 from .gate import BasalGangliaGate
 from .workspace import Workspace
 from .neuromod import Neuromodulator
-from .plasticity import Eligibility, weight_update, precision_update, feedback_update
+from .plasticity import Eligibility, weight_update, precision_update, feedback_update, feedback_update_kp
 from .counters import Counters
 from .rng import SeededRNG
 from .invariants import assert_scalar_M
@@ -52,10 +52,17 @@ class GRAILWorkspaceNet:
         for m_i, mod in enumerate(self.modules):
             for l in range(mod.L-1):
                 self.elig[m_i][l].step(a_pre=mod.x[l+1])
-                mod.W[l] += weight_update(M=M, theta=np.ones_like(mod.W[l]), Pi_post=mod.Pi[l],
-                                          eps_post=mod.eps[l], elig=self.elig[m_i][l].value,
-                                          eta=self.cfg.eta_w/self.cfg.tau_w)
-                mod.B[l] += (1.0/self.cfg.tau_b)*feedback_update(mod.B[l], a_up=mod.x[l+1], eps=mod.eps[l], cfg=self.cfg)
+                eta_w = self.cfg.eta_w/self.cfg.tau_w
+                dW = weight_update(M=M, theta=np.ones_like(mod.W[l]), Pi_post=mod.Pi[l],
+                                   eps_post=mod.eps[l], elig=self.elig[m_i][l].value, eta=eta_w)
+                if self.cfg.align_feedback:
+                    mod.W[l] += dW - self.cfg.lam_kp*mod.W[l]
+                    mod.B[l] += feedback_update_kp(mod.B[l], M=M, Pi_post=mod.Pi[l],
+                                   eps_post=mod.eps[l], elig=self.elig[m_i][l].value,
+                                   eta=eta_w, lam_kp=self.cfg.lam_kp)
+                else:
+                    mod.W[l] += dW
+                    mod.B[l] += (1.0/self.cfg.tau_b)*feedback_update(mod.B[l], a_up=mod.x[l+1], eps=mod.eps[l], cfg=self.cfg)
                 mod.Pi[l] = precision_update(mod.Pi[l], eps_sq=mod.eps[l]**2, cfg=self.cfg)
         self.gate.learn(M=M); self.gate.homeostasis(M=M)   # reward-aware homeostasis (spec FM5b)
         return z, M

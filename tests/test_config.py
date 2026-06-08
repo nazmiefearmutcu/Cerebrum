@@ -11,3 +11,9 @@ def test_defaults_present_and_sane():
 def test_config_is_frozen_and_overridable():
     c = GRAILConfig(seed=7, T_floor=0.05)
     assert c.seed == 7 and c.T_floor == 0.05
+
+def test_align_feedback_defaults_off():
+    c = GRAILConfig()
+    assert c.align_feedback is False     # OPT-IN: default behavior unchanged
+    assert c.lam_kp > 0.0                # matched KP decay parameter present
+    assert GRAILConfig(align_feedback=True).align_feedback is True

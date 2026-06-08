@@ -54,7 +54,9 @@ not generalize better, that is a valid negative result and the run script report
 import numpy as np
 
 from grail.pc_core import PCAreas
-from grail.plasticity import Eligibility, weight_update, precision_update, feedback_update
+from grail.plasticity import (
+    Eligibility, weight_update, precision_update, feedback_update, feedback_update_kp,
+)
 from grail.neuromod import Neuromodulator
 from grail.rng import SeededRNG
 
@@ -131,7 +133,21 @@ class CompositionalTask:
 # GRAIL PC-hierarchy completion runner (NO grid head: the deep PC areas do the work)
 # ------------------------------------------------------------------------------------------
 
-def _train_pc(task, cfg, passes, eta_w_scale=0.6, tau_w=1.0, tau_e=1.0):
+def _bw_alignment(net):
+    """Mean cosine similarity between B[l].T and W[l] across layers (KP alignment metric).
+    1.0 == perfect feedback alignment (B == W.T up to scale). This only READS B and W to
+    MEASURE alignment for reporting; it is NOT used inside any learning rule (no transport)."""
+    cos = []
+    for l in range(net.L - 1):
+        a = net.B[l].T.ravel()
+        b = net.W[l].ravel()
+        na = np.linalg.norm(a); nb = np.linalg.norm(b)
+        if na > 1e-12 and nb > 1e-12:
+            cos.append(float(a @ b / (na * nb)))
+    return float(np.mean(cos)) if cos else float("nan")
+
+
+def _train_pc(task, cfg, passes, eta_w_scale=0.6, tau_w=1.0, tau_e=1.0, align_curve=None):
     """Online local-plasticity training of a bare PCAreas hierarchy on the TRAIN combos.
 
     Mirrors the continual.py reconstruction loop: settle (noisy) with the full observation
@@ -146,7 +162,9 @@ def _train_pc(task, cfg, passes, eta_w_scale=0.6, tau_w=1.0, tau_e=1.0):
 
     combos = list(task.train_combos)
     order_rng = np.random.default_rng(cfg.seed + 99)
-    for _ in range(passes):
+    for p in range(passes):
+        if align_curve is not None:
+            align_curve.append(_bw_alignment(net))   # record B<->W.T cosine per pass
         order = combos[:]
         order_rng.shuffle(order)
         for (f1, f2) in order:
@@ -158,14 +176,23 @@ def _train_pc(task, cfg, passes, eta_w_scale=0.6, tau_w=1.0, tau_e=1.0):
             net.compute_errors()
             M = nm.update(reward=1.0)
             for l in range(net.L - 1):
-                net.W[l] += weight_update(
+                dW = weight_update(
                     M=M, theta=np.ones_like(net.W[l]),
                     Pi_post=net.Pi[l], eps_post=net.eps[l],
                     elig=elig[l].value, eta=eta,
                 )
-                net.B[l] += (1.0 / cfg.tau_b) * feedback_update(
-                    net.B[l], a_up=net.x[l + 1], eps=net.eps[l], cfg=cfg
-                )
+                if cfg.align_feedback:
+                    # Kolen-Pollack: matched decay on W + transposed same product on B.
+                    net.W[l] += dW - cfg.lam_kp * net.W[l]
+                    net.B[l] += feedback_update_kp(
+                        net.B[l], M=M, Pi_post=net.Pi[l], eps_post=net.eps[l],
+                        elig=elig[l].value, eta=eta, lam_kp=cfg.lam_kp,
+                    )
+                else:
+                    net.W[l] += dW
+                    net.B[l] += (1.0 / cfg.tau_b) * feedback_update(
+                        net.B[l], a_up=net.x[l + 1], eps=net.eps[l], cfg=cfg
+                    )
                 net.Pi[l] = precision_update(net.Pi[l], eps_sq=net.eps[l] ** 2, cfg=cfg)
     return net
 
@@ -195,7 +222,9 @@ def run_pc_completion(task, cfg, passes=60, settle_steps=None):
     complete combos it was trained on — a sanity reference), plus depth = #PC areas."""
     if settle_steps is None:
         settle_steps = max(cfg.n_settle, 20)
-    net = _train_pc(task, cfg, passes)
+    align_curve = []
+    net = _train_pc(task, cfg, passes, align_curve=align_curve)
+    align_curve.append(_bw_alignment(net))   # final alignment after the last pass
 
     # mechanistic diagnostics so a null is self-explained in the output:
     #  - lat_act: mean |x[l]| of the LATENT areas (l>=1) when a TRAIN obs is clamped & settled.
@@ -231,6 +260,9 @@ def run_pc_completion(task, cfg, passes=60, settle_steps=None):
         "n_heldout": len(task.heldout_combos),
         "lat_act": float(np.mean(lat_vals)) if lat_vals else float("nan"),
         "comp_norm": float(np.mean(comp_norms)) if comp_norms else float("nan"),
+        "align_start": align_curve[0] if align_curve else float("nan"),
+        "align_end": align_curve[-1] if align_curve else float("nan"),
+        "align_curve": align_curve,
     }
 
 
