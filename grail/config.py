@@ -30,5 +30,12 @@ class GRAILConfig:
     grid_lambda0: float = 4.0        # base spatial period
     grid_ratio: float = 1.42         # geometric module scaling
     grid_eta_bind: float = 1.0       # content-store binding rate
+    # metaplasticity (Stage 3)
+    tau_S: float = 20.0       # surprise-baseline EMA timescale
+    tau_c: float = 300.0      # consolidation-reserve timescale (slow)
+    alpha_c: float = 1.0      # low-surprise consolidation gain (builds c)
+    beta_c: float = 1.5       # high-surprise erosion gain (frees c)
+    c_max: float = 1.0        # max consolidation reserve
+    g_theta: float = 4.0      # plasticity-permission sigmoid sharpness
     # misc
     seed: int = 0
