@@ -35,3 +35,9 @@ def test_backprop_mlp_runs():
     ep = make_episode(h=4, w=4, vocab=5, K=12, seed=2)
     s = run_mlp_episode(ep, epochs=50)
     assert 0.0 <= s <= 1.0
+
+def test_grail_grid_beats_flat_prior_averaged():
+    from benchmarks.run_task1 import run_sweep
+    res = run_sweep(Ks=(5,10,20), seeds=(0,1,2), h=4, w=4, vocab=5)
+    for K in (5,10,20):
+        assert res["grail"][K] > res["flat"][K] + 0.05    # grid prior buys sample efficiency
