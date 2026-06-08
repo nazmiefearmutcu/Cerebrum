@@ -32,3 +32,23 @@ class PCAreas:
         for l in range(self.L):
             e += 0.5*np.sum(self.Pi[l]*self.eps[l]**2) - 0.5*np.sum(np.log(self.Pi[l]))
         return e
+
+    def settle_step(self, rng, T, clamp_bottom=None, top_pred=None, broadcast=None, counters=None):
+        self.compute_errors(top_pred=top_pred, broadcast=broadcast)
+        c = self.cfg
+        new_x = [xl.copy() for xl in self.x]
+        for l in range(self.L):
+            if l == 0 and clamp_bottom is not None:
+                new_x[0] = clamp_bottom.copy(); continue
+            drift = -self.Pi[l]*self.eps[l]
+            if l >= 1:  # feedback from area below via SEPARATE B[l-1] (no transpose)
+                pre = g_deriv(self.W[l-1] @ self.x[l]) if False else 1.0  # f' applied at the relay; see note
+                drift = drift + self.B[l-1] @ (self.Pi[l-1]*self.eps[l-1])
+            drift = drift - c.gamma*np.sign(self.x[l])     # -dR/dx (L1 sparsity)
+            step = (drift/c.tau_x)*c.dt
+            noise = rng.normal(self.x[l].shape, scale=np.sqrt(2.0*T*c.dt/c.tau_x))
+            new_x[l] = self.x[l] + step + noise
+            if counters is not None: counters.record_synaptic_ops(self.B[l-1].size if l>=1 else 0)
+        self.x = new_x
+        if counters is not None:
+            for xl in self.x: counters.record_activity(xl)
