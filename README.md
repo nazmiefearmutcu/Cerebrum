@@ -22,6 +22,16 @@ inference (no Fisher pass, no stored anchors, no task-boundary signal). The fuse
 stability-plasticity dilemma (OP3) — it is **NOT solved**: the `(θ,c)` loop is a tuned knife-edge with
 no stability proof (see *Stage-3 result* and *Honest status* below).
 
+The three staged prototypes are also wired together in **one coherent network**, `grail/unified.py`
+(`GRAILNet`), whose single `step(obs_slices, action, reward)` exercises **all five pillars together**:
+grid-HEAD path-integration on an exogenous action → cortical-module settling under both the grid
+top-down and the workspace broadcast → scalar-bid stochastic one-hot gate / write / broadcast →
+metaplastic-`θ`-gated four-factor local plasticity, all gated by the single scalar `M`. It composes
+the existing Stage-1/2/3 modules (no logic duplicated) and is exercised by an end-to-end integration
+test (`tests/test_unified.py`) pinning every invariant (one-hot write, scalar `M`, exogenous `z_act`,
+`θ` actually gating module plasticity). It is an **integration** of the existing pieces — it does not
+add a new headline result or change any Stage-1/2/3 number.
+
 ---
 
 ## The five pillars
@@ -300,6 +310,7 @@ grail/grail/        # the GRAIL package (pure NumPy, no autograd)
   workspace.py      # Stage 2: Workspace — k slots, strict one-hot write, broadcast (efference copy)
   network2.py       # Stage 2: GRAILWorkspaceNet — M modules + gate + workspace + broadcast loop (routing emerges)
   metaplasticity.py # Stage 3: MetaplasticFuse — per-synapse consolidation reserve c + surprise baseline S̄ + plasticity permission θ=σ(g(S−c)); reuses Π,ε,e (no Fisher/anchors/task-boundary)
+  unified.py        # GRAILNet — ONE network exercising ALL FIVE pillars: grid HEAD path-integration (exogenous) → PC-module settling under grid top-down + workspace broadcast → scalar-bid one-hot gate/write/broadcast → metaplastic-θ-gated four-factor module plasticity + gate learning + reward-aware homeostasis, all gated by the single scalar M; composes the staged modules (no logic duplicated)
 grail/tests/        # unit + invariant + load-bearing tests (incl. gate/workspace/network2/stage2-smoke, metaplasticity, stage3-smoke)
 grail/benchmarks/   # Task-1 + Stage-2 binding task + Stage-3 continual A→B→C; baselines (flat-prior, backprop-MLP, soft-mixer ablation, EWC-analog); run_task1.py, run_stage2.py, run_stage3.py
 ```
