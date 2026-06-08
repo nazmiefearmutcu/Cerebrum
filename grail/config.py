@@ -1,0 +1,34 @@
+from dataclasses import dataclass, field
+
+@dataclass(frozen=True)
+class GRAILConfig:
+    # PC hierarchy
+    dims: tuple = (16, 12, 8)        # area sizes, dims[0] = observation/lowest area
+    # timescales (smaller = faster)
+    tau_x: float = 1.0               # activity settling
+    tau_e: float = 5.0               # eligibility trace
+    tau_w: float = 200.0             # weight plasticity (slow)
+    tau_pi: float = 100.0            # precision learning
+    tau_r: float = 50.0              # reward baseline EMA
+    tau_b: float = 200.0             # feedback weight learning
+    # settling
+    dt: float = 0.1
+    n_settle: int = 40
+    T_floor: float = 0.02            # Pillar 4: noise floor > 0 forbids MAP collapse
+    T0: float = 0.2                  # initial annealing temperature
+    tau_anneal: float = 15.0
+    # costs / rates
+    gamma: float = 0.01              # activity L1 sparsity (R(x))
+    eta_w: float = 0.02              # weight learning rate scale
+    eta_b: float = 0.01              # feedback weight learning rate
+    lam_b: float = 1e-3              # feedback weight decay
+    Pi0: float = 1.0                 # precision prior
+    sigma0: float = 1.0              # precision floor variance
+    kappa_pi: float = 1.0            # precision learning gain
+    # grid HEAD
+    grid_n_modules: int = 6
+    grid_lambda0: float = 4.0        # base spatial period
+    grid_ratio: float = 1.42         # geometric module scaling
+    grid_eta_bind: float = 1.0       # content-store binding rate
+    # misc
+    seed: int = 0

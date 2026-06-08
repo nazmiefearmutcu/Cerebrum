@@ -1,0 +1,10 @@
+[project]
+name = "grail"
+version = "0.0.1"
+description = "GRAIL — predictive-coding, backprop-free, local-plasticity, neuromorphic-targeted learning"
+requires-python = ">=3.11"
+dependencies = ["numpy>=2.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
