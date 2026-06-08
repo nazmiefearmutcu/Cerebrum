@@ -1,32 +1,28 @@
-# GRAIL — Ralph sustained-development task
+# GRAIL — Ralph sustained task: SCALING FRONTIER (probe the central unproven bet, honestly)
 
-**Mission:** Advance and harden GRAIL (the predictive-coding, backprop-free, fully-local-plasticity, neuromorphic brain architecture at `/Users/nazmi/grail`) on its three brain-favorable axes: sample efficiency, energy/ops, online continual learning. This is the deliberate anti-pattern of a GPU-friendly sequence mixer — do NOT drift toward DeltaNet/attention/SSM.
+**Mission:** Push GRAIL (`/Users/nazmi/grail`, 89 tests green) onto HARDER tasks and LARGER scales to **map honestly where its brain-axis advantages hold and where they break**. This directly attacks the central UNPROVEN bet (spec §7 OP1: no fully-local method has matched backprop at scale) and the spec's own flagged failure modes (esp. **FM7**: frozen commuting rotation-blocks may fail on non-metric / asymmetric / abstract relational graphs). The deliverable is **honest evidence of the frontier**, NOT a "scaling solved" claim.
 
-**Each iteration, FIRST read:** `docs/superpowers/specs/2026-06-08-grail-cortical-workspace-design.md` and `README.md` for full context. Then pick the SINGLE highest-priority unfinished roadmap item below, implement it strictly test-first (TDD), run the FULL pytest suite to green (never regress the existing tests — currently 59), run a ban-audit grep over `grail/`, and commit with a clear message.
+## How this loop runs (speed + safety)
+- **Each iteration, do the work via a BACKGROUND Workflow** (multi-agent, fast) — NOT slow single-threaded inline edits.
+- **Concurrency rule (critical):** if a GRAIL background workflow is still running (check `/workflows` / TaskList), do **NOT** start another and do **NOT** edit the repo this turn — briefly note progress and yield. Only launch the next workflow when none is running. Never have two writers on the repo.
+- After a workflow completes: independently verify (run suite + re-run the new benchmark + ban-audit), integrate/commit if needed, update README, then launch the next item.
 
-## ABSOLUTE BANS (never violate — a violation invalidates the project)
-1. NO backprop / autograd / torch / jax anywhere in the `grail/` package. Every update is a hand-written local rule. Allowed ONLY in clearly-labeled `benchmarks/baselines/` comparators.
-2. NO weight transport: no update may read the transpose of a forward weight (`W.T`). Feedback uses a SEPARATE `B` array.
-3. The neuromodulator `M` is a SCALAR. No vector global signal may enter any weight update (that is DFA).
-4. The workspace write is STRICT one-hot. The soft aggregation `W_j = sum_m P*read(m)` is FORBIDDEN in `grail/` — it exists only in `benchmarks/baselines/soft_mixer.py` as the labeled ablation.
-5. The grid driver `z_act` is strictly `Exogenous` — a data-dependent `z_act` is a ban (selective-SSM).
-6. Success is measured ONLY on sample-efficiency / energy-ops / continual-learning. NEVER GPU throughput, latency, or perplexity.
+## ABSOLUTE BANS (unchanged — a violation invalidates the project)
+No backprop/autograd/torch/jax in `grail/` (only in labeled `benchmarks/baselines/`); no weight transport (`W.T`); scalar `M` only; strict one-hot workspace write in `grail/`; exogenous-only `z_act`; the metaplastic fuse uses ONLY local `Π/ε/eligibility` (no Fisher/anchors/task-boundary — those only in `ewc.py`); success only on sample-efficiency / energy-ops / continual-learning, never throughput/perplexity/latency.
 
-## HONESTY GATE (never violate)
-- NEVER claim "scaling solved", "stability-plasticity solved", or "O(1) global comm".
-- Zero open problems are solved. Scaling is an unproven bet. The metaplastic fuse is a tuned knife-edge with no stability proof.
-- Report failure modes and where things break. Do not overclaim. If a result weakens, say so.
+## HONESTY GATE (unchanged)
+NEVER claim "scaling solved" / "stability-plasticity solved" / "O(1) global comm". Report where it BREAKS as loudly as where it holds. A NULL or NEGATIVE result, mechanism-explained, is a SUCCESS for this loop. Multi-seed CIs on every headline number. Don't weaken assertions to pass; downgrade claims instead.
 
-## ROADMAP (priority order — do the highest unfinished one)
-1. **Clean the Stage-3 fuse consolidation drive** in `grail/metaplasticity.py`: it currently double-counts `relu(-S)` via two identical terms (`max(S_bar - S_raw, 0)` and `max(-S, 0)` are equal since `S = S_raw - S_bar`). Refactor into ONE clear predictive-regime drive, and re-verify the forgetting table still holds (GRAIL `forgetA` < always-plastic `forgetA`, and GRAIL still learns C). Re-run `benchmarks/run_stage3.py`.
-2. **Multi-seed confidence intervals + sensitivity sweeps** in `benchmarks/run_task1.py`, `run_stage2.py`, `run_stage3.py` so every headline number carries a CI over >=5 seeds, and key knobs get a small sensitivity sweep.
-3. **Task-3 ENERGY/OP LEARNING CURVES** from the already-instrumented `Counters`: show dynamic switching-energy decaying with competence (as `eps -> 0` and sparsity `rho -> floor`); report learn-time O(1) scalar-M vs infer-time O(k*T_settle) broadcast traffic vs a dense backprop baseline; HONESTLY report that static/leakage and settle-time energy do NOT necessarily decay. Add tests + a `run_energy.py`.
-4. **Strengthen weak spots:** raise the M=6 routing accuracy (currently 0.354 vs chance 0.167) and make the catastrophic-forgetting knife-edge hold across seeds WITHOUT per-task retuning of `(tau_c, alpha_c, beta_c, g_theta)`.
-5. **Unify** Stage-1 `GRAILCore` + Stage-2 `GRAILWorkspaceNet` + Stage-3 metaplastic fuse into ONE coherent network class exercising all five pillars together, with an integration test.
-6. **Explore the UNPROVEN scaling bet** on harder relational + continual tasks (bigger graphs, more tasks/classes, deeper hierarchies), framed honestly as a bet — report where it holds and where it breaks.
+## ROADMAP (priority order — highest unfinished first)
+1. **Non-metric / asymmetric relational graphs (probe FM7).** Build a relational task whose transitions do NOT compose as commuting rotations: directed/asymmetric graphs, trees/hierarchies, abstract (non-Euclidean) relations. Compare GRAIL-grid vs flat-prior vs backprop-MLP few-shot. HONEST expectation: the rotation-block grid prior should DEGRADE here (its algebra assumes metric/Euclidean composition). Map exactly where and how much it breaks vs the metric gridworld where it shines.
+2. **Transitive inference** (classic relational generalization): a total order A>B>C>D>E; observe only ADJACENT pairs; test NON-adjacent pairs (e.g. B vs D). Does the grid/structured prior generalize the ordering from few examples better than baselines?
+3. **Larger metric graphs:** push Task-1 from 8×8 to 12×12, 16×16 (and bigger vocab). Does the few-shot grid advantage hold, shrink, or break with size? CIs.
+4. **Harder continual learning:** more tasks and/or class-incremental / sharper boundaries (beyond the A→B→C reconstruction stream). Does the metaplastic fuse still reduce first-task forgetting, and where does the knife-edge break, without per-task retuning?
+5. **Deeper-hierarchy fix:** the I6 depth null-result was because Task-1 completion reads only the grid HEAD. Build a COMPOSITIONAL task where deeper PC areas are actually consulted, and test whether depth then helps (or honestly does not).
+6. **Frontier synthesis:** a single honest "where GRAIL holds / breaks" map across all axes + a README "Scaling frontier" section with CIs and explicit non-claims.
 
-## Method
-For any non-trivial item, prefer the proven build method: write a bite-sized TDD micro-plan, then implement and independently review (run the full suite + ban-audit grep) before committing. Keep files focused. Update `README.md` results tables when numbers change.
+## Method per item
+For each item, the background Workflow should: write/extend tests (TDD), implement the harder task + run it with multi-seed CIs, run the FULL suite green + a ban-audit, commit, and update the README. Independent review agent verifies (re-run + ban + honesty audit) before the item is considered done.
 
 ## Loop termination
-Do NOT emit the completion promise `GRAIL-ADVANCED-USER-APPROVED` yourself under ANY circumstances. Only the human stops this loop. Keep iterating and improving until they do.
+Do NOT emit the completion promise `GRAIL-SCALING-USER-APPROVED` yourself under ANY circumstances — only the human stops this loop. Keep mapping the frontier until they do.
