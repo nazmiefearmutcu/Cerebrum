@@ -27,3 +27,22 @@ def test_transition_rejects_plain_array():
     gh = GridHead(GRAILConfig()); gh.reset()
     with pytest.raises(TypeError):
         gh.transition(np.array([1.0,0.0]))                # data-derived action = BAN-1
+
+def test_bind_then_complete_recovers_observation_at_bound_location():
+    gh = GridHead(GRAILConfig()); gh.reset()
+    obs = np.array([0.0, 1.0, 0.0, -1.0])
+    gh.bind(obs)                                  # bind obs at current location
+    rec = gh.complete()                           # complete at the SAME location
+    # cosine similarity high (single binding -> proportional recall)
+    assert np.dot(rec, obs)/(np.linalg.norm(rec)*np.linalg.norm(obs)+1e-9) > 0.9
+
+def test_completion_generalizes_to_path_integrated_location():
+    gh = GridHead(GRAILConfig()); gh.reset()
+    obsA = np.array([1.0,0.0,0.0]); obsB = np.array([0.0,1.0,0.0])
+    gh.bind(obsA)
+    gh.transition(__import__('grail.types',fromlist=['Exogenous']).Exogenous(np.array([3.0,2.0])))
+    gh.bind(obsB)
+    # return to A by exact inverse displacement; completion should recall obsA (graph completion)
+    gh.transition(__import__('grail.types',fromlist=['Exogenous']).Exogenous(np.array([-3.0,-2.0])))
+    rec = gh.complete()
+    assert np.dot(rec, obsA)/(np.linalg.norm(rec)*np.linalg.norm(obsA)+1e-9) > 0.8

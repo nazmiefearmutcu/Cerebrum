@@ -12,6 +12,7 @@ class GridHead:
         self.k = np.stack([(2*np.pi/periods)*np.cos(angles),
                            (2*np.pi/periods)*np.sin(angles)], axis=1)  # (M,2) frozen frequencies
         self.pos = np.zeros(2)
+        self.store = None; self.obs_dim = None
     def reset(self):
         self.pos = np.zeros(2)
     def transition(self, action):
@@ -20,3 +21,14 @@ class GridHead:
     def encode(self):
         phase = self.k @ self.pos                            # (M,)
         return np.stack([np.cos(phase), np.sin(phase)], axis=1).reshape(-1)
+    def _ensure_store(self, obs_dim):
+        if self.store is None:
+            self.obs_dim = obs_dim
+            self.store = np.zeros((obs_dim, self.encode().size))   # M_t: (obs_dim, grid_dim)
+    def bind(self, obs, M=1.0):
+        obs = np.asarray(obs, float); self._ensure_store(obs.size)
+        g = self.encode()
+        self.store += self.cfg.grid_eta_bind * M * np.outer(obs, g)   # Hebbian outer product
+    def complete(self):
+        g = self.encode()
+        return self.store @ g if self.store is not None else np.zeros(self.obs_dim or 1)
