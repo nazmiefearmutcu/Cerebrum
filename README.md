@@ -10,12 +10,14 @@ in the `grail/` package — every weight, feedback, and precision update is a ha
 > **Design spec:** [`docs/superpowers/specs/2026-06-08-grail-cortical-workspace-design.md`](docs/superpowers/specs/2026-06-08-grail-cortical-workspace-design.md)
 > **Implementation plan (Stage 0+1):** [`docs/superpowers/plans/2026-06-08-grail-stage0-1-pc-core-grid-head.md`](docs/superpowers/plans/2026-06-08-grail-stage0-1-pc-core-grid-head.md)
 
-This repository currently implements **Stage 0 + Stage 1**: the predictive-coding core (error
-neurons, stochastic Langevin settling, four-factor local plasticity, separate feedback weights,
-diagonal precision) plus the structured grid generative HEAD, validated on a TEM-class few-shot
-graph-completion task. The gate / workspace / broadcast (Stage 2) and the metaplastic
-stability-plasticity fuse (Stage 3) are **not yet built** — they are explicitly staged for later
-plans.
+This repository currently implements **Stage 0 + Stage 1 + Stage 2**: the predictive-coding core
+(error neurons, stochastic Langevin settling, four-factor local plasticity, separate feedback
+weights, diagonal precision) plus the structured grid generative HEAD, validated on a TEM-class
+few-shot graph-completion task; and now the **cortical workspace** — a stochastic basal-ganglia
+gate, a `k≪n` workspace with strict one-hot write, and the thalamo-cortical broadcast loop, in
+which inter-module routing **emerges** with no attention matrix. The metaplastic
+stability-plasticity fuse (Stage 3) is **not yet built** — it is explicitly staged for a later
+plan.
 
 ---
 
@@ -106,6 +108,51 @@ not evidence of scaling — see *Honest status* above.
 
 ---
 
+## Stage-2 result — does routing *emerge* without an attention matrix?
+
+Stage 2 adds the **cortical workspace** (`grail/gate.py`, `grail/workspace.py`, `grail/network2.py`):
+`M` predictive-coding modules each settle on their own input slice; each emits a **scalar own-error
+bid** `b_m = π_m·E[‖ε_m‖²] + θ_m`; a striatal Go/NoGo gate draws a **stochastic strict-one-hot**
+winner per workspace slot (Gumbel-argmax = exact softmax sample, never a plain argmax); the winner's
+content is written one-hot into a slot and **broadcast back** as a top-down prediction that re-enters
+every module's next settling. That closed loop — `bid → one-hot write → broadcast → reshape-next-bid`
+— is the **only** token-mixing pathway. There is **no attention matrix, no query-key term, no
+delta-rule, no state-space operator** anywhere; the "mixing matrix" exists only as the transient
+time-series of one-hot win events. The gate's weights learn by a **local three-factor rule** gated by
+the scalar neuromodulator `M` (eligibility `e_mj = (z − P)·b`), never a global error vector.
+
+**The load-bearing claim: routing emerges and the strict one-hot write is essential.** We test this
+two ways on a selective-routing ("binding") task — `M` modules each see a one-hot object, one
+designated TARGET module carries the salient (rewarded) object, and the gate must learn to route the
+target into the slot:
+
+1. **Emergent routing + load balance.** Routing accuracy rises well above chance, and win-entropy
+   stays high (no permanently dead/hog expert — the dead-expert homeostasis spreads wins).
+2. **One-hot vs soft (BAN-1 / §10 ablation).** Relaxing the strict one-hot write to the **forbidden**
+   soft aggregation `W_j ← Σ_m P(win_j=m)·read(m)` (`benchmarks/baselines/soft_mixer.py`) turns the
+   workspace into a content-gated linear recurrent mixer (a gated-SSM / linear-attention/Mamba-class
+   identity). Routing accuracy degrades toward chance and per-slot participation climbs above 1 (many
+   modules contribute every step) — proving the discreteness is **load-bearing, not cosmetic**.
+
+Reproduce with `python3 benchmarks/run_stage2.py`:
+
+```
+[M=4] one-hot: routing_acc=0.850 entropy=1.385 (chance=0.250) | soft: routing_acc=0.746 participation=1.49
+[M=6] one-hot: routing_acc=0.354 entropy=1.775 (chance=0.167) | soft: routing_acc=0.202 participation=3.26
+```
+
+At both module counts the one-hot gate routes the target **above chance** and **above the soft
+ablation**, while the soft workspace mixes >1 module per slot (participation > 1). This demonstrates
+**emergent routing** and that strict one-hot discreteness is what makes it routing rather than mixing.
+
+**Honesty gate (unchanged).** This stage still solves **zero** open problems. It demonstrates
+**emergent routing without an attention matrix**, plus the one-hot-vs-soft contrast — it is **NOT**
+evidence of scaling, throughput, or perplexity parity, and makes **no** scaling claim. Routing
+accuracy is a property of this small binding task, not of any open problem (see *Honest status*
+above). The infer-time broadcast traffic is **not** O(1); only the learn-time scalar `M` is.
+
+---
+
 ## Repository layout
 
 ```
@@ -121,8 +168,11 @@ grail/grail/        # the GRAIL package (pure NumPy, no autograd)
   neuromod.py       # scalar neuromodulator M and couplings
   grid_head.py      # structured grid prior: frozen modules, path integration, content store
   network.py        # GRAILCore (Stage 1: PC areas + grid HEAD, NO gate yet)
-grail/tests/        # unit + invariant + load-bearing tests
-grail/benchmarks/   # Task-1 task, baselines (flat-prior, backprop-MLP comparator), run_task1.py
+  gate.py           # Stage 2: BasalGangliaGate — scalar bids, striatal Go/NoGo, stochastic one-hot select, local 3-factor learn, dead-expert homeostasis
+  workspace.py      # Stage 2: Workspace — k slots, strict one-hot write, broadcast (efference copy)
+  network2.py       # Stage 2: GRAILWorkspaceNet — M modules + gate + workspace + broadcast loop (routing emerges)
+grail/tests/        # unit + invariant + load-bearing tests (incl. gate/workspace/network2/stage2-smoke)
+grail/benchmarks/   # Task-1 + Stage-2 binding task; baselines (flat-prior, backprop-MLP, soft-mixer ablation); run_task1.py, run_stage2.py
 ```
 
 ---
@@ -131,8 +181,9 @@ grail/benchmarks/   # Task-1 task, baselines (flat-prior, backprop-MLP comparato
 
 ```bash
 cd grail
-python3 -m pytest -q          # full test suite (no external deps beyond numpy)
-python3 benchmarks/run_task1.py   # print the Task-1 result table
+python3 -m pytest -q            # full test suite (no external deps beyond numpy)
+python3 benchmarks/run_task1.py    # print the Task-1 (grid prior / sample efficiency) result table
+python3 benchmarks/run_stage2.py   # print the Stage-2 (emergent routing + one-hot-vs-soft) result table
 ```
 
 Python 3.11+, NumPy 2.x. No other dependencies. Nothing to install for the package itself.
