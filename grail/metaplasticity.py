@@ -17,17 +17,14 @@ class MetaplasticFuse:
 
     def update(self, Pi_post, eps_post, elig):
         S_raw = self._raw_surprise(Pi_post, eps_post, elig)
-        S = S_raw - self.S_bar                                       # surprise relative to baseline
-        self.S_bar += (1.0/self.cfg.tau_S) * (S_raw - self.S_bar)    # baseline EMA
-        # [S]_+ = above-baseline surprise erodes the reserve (learn-on-surprise);
-        # [S]_- = predictive (at-or-below-baseline) builds it. A quiescent synapse
-        # (S_raw at/below its baseline) is maximally predictive -> consolidates.
-        pos = np.maximum(S, 0.0)                                     # surprising: erode c
-        neg = np.maximum(self.S_bar - S_raw, 0.0) + np.maximum(-S, 0.0)  # predictive: build c
-        # a perfectly-predicted synapse (S_raw==S_bar==0) is fully predictive -> unit drive
-        quiet = (S_raw <= self.S_bar).astype(float)
-        neg = neg + quiet                                           # predictive-regime baseline drive
-        dc = self.cfg.alpha_c*neg*(self.cfg.c_max - self.c) - self.cfg.beta_c*pos*self.c
+        S = S_raw - self.S_bar                       # surprise relative to the (pre-update) baseline
+        # ONE clear drive each: a synapse in the PREDICTIVE regime — current surprise at or below
+        # its own running baseline, including the perfectly-quiet case S_raw==S_bar==0 — builds the
+        # reserve; surprise that EXCEEDS the baseline erodes it, graded by how far (learn-on-surprise).
+        predictive = (S_raw <= self.S_bar).astype(float)            # [S]_- regime indicator: build c
+        surprising = np.maximum(S, 0.0)                             # [S]_+ magnitude: erode c
+        dc = self.cfg.alpha_c*predictive*(self.cfg.c_max - self.c) - self.cfg.beta_c*surprising*self.c
         self.c = np.clip(self.c + (1.0/self.cfg.tau_c)*dc, 0.0, self.cfg.c_max)
-        theta = 1.0/(1.0 + np.exp(-self.cfg.g_theta*(S - self.c)))   # sigma(g(S - c))
+        self.S_bar += (1.0/self.cfg.tau_S) * (S_raw - self.S_bar)   # baseline EMA (after it is used)
+        theta = 1.0/(1.0 + np.exp(-self.cfg.g_theta*(S - self.c)))  # sigma(g(S - c))
         return theta
