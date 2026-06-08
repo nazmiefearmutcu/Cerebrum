@@ -23,3 +23,7 @@ def precision_update(Pi, eps_sq, cfg):
     target = 1.0 / np.maximum(cfg.sigma0**2 + eps_sq, 1e-6)   # 1/(sigma0^2 + <eps^2>)
     dPi = cfg.kappa_pi * (target - Pi)
     return Pi + (1.0/cfg.tau_pi)*dPi
+
+def feedback_update(B, a_up, eps, cfg):
+    """Local feedback-weight rule: eta_b * a_up outer eps - lam_b * B. No transpose of W is read."""
+    return cfg.eta_b*np.outer(a_up, eps) - cfg.lam_b*B

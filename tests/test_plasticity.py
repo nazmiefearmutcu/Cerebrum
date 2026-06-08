@@ -25,3 +25,12 @@ def test_precision_converges_to_inverse_variance():
     Pi = np.array([1.0]); var = 0.25
     for _ in range(5000): Pi = precision_update(Pi, eps_sq=np.array([var]), cfg=c)
     assert abs(Pi[0] - 1.0/var) < 0.1             # Pi -> 1/<eps^2>
+
+def test_feedback_update_is_local_outer_product():
+    from grail.plasticity import feedback_update
+    from grail.config import GRAILConfig
+    c = GRAILConfig(eta_b=1.0, lam_b=0.0)
+    a_up = np.array([1.0, -1.0]); eps = np.array([0.5, 0.2, -0.3])   # B shape (2,3)
+    B = np.zeros((2,3))
+    dB = feedback_update(B, a_up=a_up, eps=eps, cfg=c)
+    assert np.allclose(dB, np.outer(a_up, eps))    # uses only local a_up, eps (no W, no transpose)
