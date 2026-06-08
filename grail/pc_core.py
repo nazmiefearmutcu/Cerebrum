@@ -41,9 +41,11 @@ class PCAreas:
             if l == 0 and clamp_bottom is not None:
                 new_x[0] = clamp_bottom.copy(); continue
             drift = -self.Pi[l]*self.eps[l]
-            if l >= 1:  # feedback from area below via SEPARATE B[l-1] (no transpose)
-                pre = g_deriv(self.W[l-1] @ self.x[l]) if False else 1.0  # f' applied at the relay; see note
-                drift = drift + self.B[l-1] @ (self.Pi[l-1]*self.eps[l-1])
+            if l >= 1:  # feedback from area below via SEPARATE B[l-1] (no transpose of W)
+                # f' evaluated at the area-below prediction's pre-activation W[l-1] @ x[l];
+                # in the symmetric limit B=W.T this is exactly the nonlinear PC energy gradient.
+                fprime = g_deriv(self.W[l-1] @ self.x[l])
+                drift = drift + self.B[l-1] @ (fprime * (self.Pi[l-1]*self.eps[l-1]))
             drift = drift - c.gamma*np.sign(self.x[l])     # -dR/dx (L1 sparsity)
             step = (drift/c.tau_x)*c.dt
             noise = rng.normal(self.x[l].shape, scale=np.sqrt(2.0*T*c.dt/c.tau_x))
