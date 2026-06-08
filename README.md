@@ -465,6 +465,39 @@ learns on its own.
 
 ---
 
+## Pillar-4 probe — is the stochastic settling noise load-bearing?
+
+The spec frames the Langevin settling noise (`T_floor > 0`, Pillar 4) as load-bearing — "the brain's
+Monte Carlo", preventing MAP collapse. We tested that honestly two ways.
+
+**(i) Ablation — does the noise improve accuracy?** Sweeping `T_floor ∈ {0, …, 0.2}` across all three
+core tasks (`python3 benchmarks/run_pillar4_ablation.py`, 5 seeds, CIs):
+
+| axis | T=0 (deterministic) | best T>0 | verdict |
+|---|---|---|---|
+| Task-1 few-shot | 0.381 ± 0.079 | 0.381 (bit-exact) | **NULL** — completion reads the grid store, never the settled `x` |
+| Stage-2 routing | 0.764 ± 0.138 | 0.794 ± 0.120 (T=0.02) | **WEAK, CIs overlap** — load-balance comes from gate homeostasis+Gumbel, not settling noise |
+| Stage-3 forgetting | **−0.045 ± 0.041** | (rises with T) | **HURTS** — deterministic retains best; noise corrupts the eps/eligibility that drive plasticity |
+
+**Honest verdict: the *settling* noise is NOT load-bearing for accuracy on these tasks** — deterministic
+settling is as good or better everywhere, and decisively better for continual retention. (The
+collapse-prevention the spec attributes to Pillar 4 is actually done by a *separate* noise source — the
+gate's Gumbel sampling + homeostasis — which this ablation left on.) Too-high `T` hurts everywhere. This
+challenges Pillar-4's load-bearing framing for the settling term, and is recorded as such.
+
+**(ii) But the noise *does* buy calibrated uncertainty.** Drawing S≈21 stochastic settles per query and
+measuring whether their *disagreement* predicts error (`python3 benchmarks/run_uncertainty.py`): AUROC
+(sample-entropy → error) = **0.64 ± 0.10** (CI clears 0.5 at ≥12–20 seeds); the model is reliably more
+often wrong where its noisy settles disagree. **Modest but real**, and it lives specifically at the native
+noise floor (cranking `T` to 1.0 washes it out). This is a brain-favorable capability a single
+deterministic transformer forward pass does not natively provide — a real, if narrow, payoff for Pillar 4.
+
+**Net:** Pillar-4 settling noise does **not** help task accuracy (and hurts continual retention), **but**
+it yields a genuine, modest, calibrated uncertainty signal at the native floor. Honest, two-sided result —
+neither the spec's strong "load-bearing" claim nor a flat dismissal.
+
+---
+
 ## Task-3 result — energy / operations (success axis 2)
 
 GRAIL is event-driven: an error neuron only "spikes" (and drives its synapses) when its prediction
