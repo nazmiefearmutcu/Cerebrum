@@ -10,3 +10,6 @@ runs/
 *.npz
 !benchmarks/fixtures/*.npz
 .ipynb_checkpoints/
+
+# ralph loop state (not part of the project)
+.claude/
