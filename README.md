@@ -10,14 +10,17 @@ in the `grail/` package — every weight, feedback, and precision update is a ha
 > **Design spec:** [`docs/superpowers/specs/2026-06-08-grail-cortical-workspace-design.md`](docs/superpowers/specs/2026-06-08-grail-cortical-workspace-design.md)
 > **Implementation plan (Stage 0+1):** [`docs/superpowers/plans/2026-06-08-grail-stage0-1-pc-core-grid-head.md`](docs/superpowers/plans/2026-06-08-grail-stage0-1-pc-core-grid-head.md)
 
-This repository currently implements **Stage 0 + Stage 1 + Stage 2**: the predictive-coding core
-(error neurons, stochastic Langevin settling, four-factor local plasticity, separate feedback
+This repository currently implements **Stage 0 + Stage 1 + Stage 2 + Stage 3**: the predictive-coding
+core (error neurons, stochastic Langevin settling, four-factor local plasticity, separate feedback
 weights, diagonal precision) plus the structured grid generative HEAD, validated on a TEM-class
-few-shot graph-completion task; and now the **cortical workspace** — a stochastic basal-ganglia
-gate, a `k≪n` workspace with strict one-hot write, and the thalamo-cortical broadcast loop, in
-which inter-module routing **emerges** with no attention matrix. The metaplastic
-stability-plasticity fuse (Stage 3) is **not yet built** — it is explicitly staged for a later
-plan.
+few-shot graph-completion task; the **cortical workspace** — a stochastic basal-ganglia gate, a
+`k≪n` workspace with strict one-hot write, and the thalamo-cortical broadcast loop, in which
+inter-module routing **emerges** with no attention matrix; and now the **surprise-gated metaplastic
+fuse** (`grail/metaplasticity.py`) — a per-synapse consolidation reserve `c` and plasticity-permission
+`θ = σ(g(S − c))` driven by **local surprise only**, reusing the same `Π,ε,e` already computed for
+inference (no Fisher pass, no stored anchors, no task-boundary signal). The fuse **addresses** the
+stability-plasticity dilemma (OP3) — it is **NOT solved**: the `(θ,c)` loop is a tuned knife-edge with
+no stability proof (see *Stage-3 result* and *Honest status* below).
 
 ---
 
@@ -63,7 +66,7 @@ bet is unproven.
 |---|---|
 | **Scaling** | **NOT solved — an UNPROVEN bet.** No fully-local, transport-relaxed, noisy-sampling method has matched backprop on hard tasks. With `B ≠ Wᵀ`, the rule does not even provably recover the true gradient at the fixed point. |
 | **Backward-weight wart** | **Relaxed, not solved.** `B` replaces `Wᵀ` as a feedback-alignment-class approximation; transpose recovery is not guaranteed. |
-| **Stability-plasticity** | **Genuinely addressed, NOT solved** (and not yet built — Stage 3). No stability proof; can fail toward catastrophic forgetting OR plastic-death. |
+| **Stability-plasticity** | **Genuinely addressed, NOT solved** (Stage 3, surprise-gated metaplastic fuse, validated on Task-2). No stability proof; the `(θ,c)` loop is a tuned knife-edge that can fail toward catastrophic forgetting OR plastic-death (FM4). |
 | **Global coherence** | **Pressured, not guaranteed.** |
 | **Dead experts** | **Addressed, fragile in both directions.** No closed-form setpoint. |
 
@@ -71,8 +74,9 @@ bet is unproven.
 
 - ❌ No claim that **scaling is solved**. Scaling is an unproven bet; with `B ≠ Wᵀ` the update is
   not even a provable gradient.
-- ❌ No claim that **stability-plasticity is solved**. The metaplastic fuse is not yet implemented
-  and, even when built, carries no stability proof.
+- ❌ No claim that **stability-plasticity is solved**. The metaplastic fuse is implemented and
+  reduces forgetting on Task-2, but carries **no stability proof**; it is a tuned knife-edge (FM4 —
+  forgetting OR plastic-death), not a guarantee.
 - ❌ No claim of **O(1) global communication**. Learn-time scalar comm is a *target*, not a proven
   property; infer-time broadcast/routing traffic is not O(1).
 
@@ -153,6 +157,53 @@ above). The infer-time broadcast traffic is **not** O(1); only the learn-time sc
 
 ---
 
+## Stage-3 result — does the metaplastic fuse mitigate catastrophic forgetting?
+
+Stage 3 adds the **surprise-gated metaplastic fuse** (`grail/metaplasticity.py`). Each synapse keeps a
+slow consolidation reserve `c` and a surprise baseline `S̄`; it reads the **same** precision-weighted
+error-eligibility magnitude `S_raw = |Π·ε·e|` that already drives inference, forms a relative surprise
+`S = S_raw − S̄`, lets **below-baseline (predictive) activity build `c`** and **above-baseline (surprising)
+activity erode `c`**, and emits a per-synapse plasticity permission `θ = σ(g(S − c)) ∈ [0,1]` that
+multiplies the four-factor weight rule. Low surprise → `c↑, θ↓` (the synapse freezes, protecting prior
+tasks); high surprise → `c↓, θ↑` (the synapse reopens, learn-on-surprise). **There is no Fisher pass, no
+stored anchor weights, and no task-boundary signal to the fuse** — those belong only to the EWC-analog
+*baseline* GRAIL aims to match without them.
+
+**The load-bearing claim: the fuse reduces forgetting vs always-plastic local learning, while still
+learning the later task, without replay/iid/Fisher/anchors.** We run a sequential reconstruction stream
+A→B→C (`benchmarks/tasks/continual.py`) — three disjoint prototype clusters streamed in order, **no
+replay, no iid mixing, no task-boundary signal** — and measure reconstruction error on held-out A
+patterns after A and again after C. **Forgetting** = (error-on-A after C) − (error-on-A after A).
+Comparators on the same local substrate: `θ≡1` (always-plastic; should forget) and an EWC-analog
+(`benchmarks/baselines/ewc.py`; a quadratic anchor penalty `−λΩ(W−W*)` that **does** pay for a Fisher
+pass + stored anchors).
+
+Reproduce with `python3 benchmarks/run_stage3.py` (averaged over seeds `{0, 1, 2}`):
+
+```
+method             forgetA   errC_afterC
+GRAIL-fuse           0.375         1.112   (cbar=0.93)
+always-plastic       0.894         1.016
+EWC-analog           0.237         1.476   (+Fisher pass +anchors)
+```
+
+The fuse roughly **halves forgetting** vs always-plastic (0.375 vs 0.894) — A consolidates (`cbar≈0.93`
+after A, so `θ` closes before B/C arrive) — while `errC_afterC < errC_beforeC` confirms C is still learned
+(no plastic-death). It is **competitive with EWC** (0.375 vs 0.237) *without* EWC's Fisher pass or stored
+anchors. EWC retains A slightly better but pays in forward learning (its `errC_afterC` is the highest of
+the three).
+
+**Honesty gate (critical).** OP3 (stability-plasticity) is **GENUINELY ADDRESSED — NOT SOLVED.** The
+`(θ,c)` loop is a **tuned knife-edge**, not a proof. It is exactly spec failure-mode **FM4**, with **two**
+ways to fall off: **catastrophic forgetting** (if `θ` never closes, A is overwritten) and **plastic-death**
+(if `θ` never reopens, B/C cannot be learned). The numbers above hold at the working config knobs
+(`tau_S, tau_c, alpha_c, beta_c, c_max, g_theta` in `grail/config.py`); there is **no stability proof** and
+**no guarantee** of robustness to new tasks/seeds without tuning. **We do NOT claim "stability-plasticity
+solved."** This stage solves **zero** open problems; it demonstrates **forgetting reduction without
+replay/iid/Fisher/anchors**, which is the only success axis claimed here.
+
+---
+
 ## Repository layout
 
 ```
@@ -171,8 +222,9 @@ grail/grail/        # the GRAIL package (pure NumPy, no autograd)
   gate.py           # Stage 2: BasalGangliaGate — scalar bids, striatal Go/NoGo, stochastic one-hot select, local 3-factor learn, dead-expert homeostasis
   workspace.py      # Stage 2: Workspace — k slots, strict one-hot write, broadcast (efference copy)
   network2.py       # Stage 2: GRAILWorkspaceNet — M modules + gate + workspace + broadcast loop (routing emerges)
-grail/tests/        # unit + invariant + load-bearing tests (incl. gate/workspace/network2/stage2-smoke)
-grail/benchmarks/   # Task-1 + Stage-2 binding task; baselines (flat-prior, backprop-MLP, soft-mixer ablation); run_task1.py, run_stage2.py
+  metaplasticity.py # Stage 3: MetaplasticFuse — per-synapse consolidation reserve c + surprise baseline S̄ + plasticity permission θ=σ(g(S−c)); reuses Π,ε,e (no Fisher/anchors/task-boundary)
+grail/tests/        # unit + invariant + load-bearing tests (incl. gate/workspace/network2/stage2-smoke, metaplasticity, stage3-smoke)
+grail/benchmarks/   # Task-1 + Stage-2 binding task + Stage-3 continual A→B→C; baselines (flat-prior, backprop-MLP, soft-mixer ablation, EWC-analog); run_task1.py, run_stage2.py, run_stage3.py
 ```
 
 ---
@@ -184,6 +236,7 @@ cd grail
 python3 -m pytest -q            # full test suite (no external deps beyond numpy)
 python3 benchmarks/run_task1.py    # print the Task-1 (grid prior / sample efficiency) result table
 python3 benchmarks/run_stage2.py   # print the Stage-2 (emergent routing + one-hot-vs-soft) result table
+python3 benchmarks/run_stage3.py   # print the Stage-3 (catastrophic-forgetting: fuse vs θ≡1 vs EWC) result table
 ```
 
 Python 3.11+, NumPy 2.x. No other dependencies. Nothing to install for the package itself.
