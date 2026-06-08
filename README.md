@@ -268,6 +268,23 @@ replay/iid/Fisher/anchors**, which is the only success axis claimed here.
 > CIs over 8 seeds, **exactly where the brain-axis advantages hold and where they break**. We
 > make **no "scaling solved" claim.** Reproduce with `python3 benchmarks/run_scaling.py`.
 
+### Frontier map at a glance (where GRAIL holds vs breaks)
+
+| Probe | Axis | Verdict | Why (one line) |
+|---|---|---|---|
+| Larger metric graphs (→16×16) | sample-eff | **HOLDS, margin widens** | same metric grid prior; baselines decay to a falling chance floor |
+| Transitive inference (→N=25) | sample-eff | **HOLDS, distinct at scale** | linear order is the grid's native metric; O(1)-in-distance comparison |
+| Non-metric / directed graphs | sample-eff | **BREAKS (→ baseline)** | grid assumes commutative/metric composition; directed paths don't compose (FM7) |
+| Longer continual streams (→10 tasks) | continual | HOLDS (creeps) | fuse still protects A; forgetA drifts 0.06→0.17, stays ≪ always-plastic |
+| Task similarity / interference | continual | HOLDS (+ plastic-death tax) | overlap gives positive transfer to A; cost shows as worse newest-task error |
+| Continual training budget (passes) | continual | **BREAKS ≥200 passes** | fixed `tau_c/beta_c`: more budget = more erosion of A's reserve (FM4 knife-edge) |
+| Deeper PC hierarchy + compositional | the central bet (OP1) | **NULL** | local plasticity doesn't build `f1→f2` factorization at this scale; depth inert |
+
+**Reading:** the demonstrated sample-efficiency win lives specifically in the **frozen metric structured
+prior** (and scales there); the **local learning rule has not, at these scales, been shown to induce rich
+compositional structure on its own**, and the continual fuse is a **budget-bounded tuned knife-edge**.
+This is the honest state of the central bet — strengths and limits both mapped.
+
 ### (a) Task-1 few-shot graph-completion on bigger gridworlds / larger vocab
 
 Held-out edge-completion accuracy (mean ± 95% CI, 8 seeds; GRAIL-grid vs flat-prior vs the
