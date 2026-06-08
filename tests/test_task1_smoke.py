@@ -21,3 +21,17 @@ def test_grail_scores_above_chance_on_completion():
     cfg = GRAILConfig(dims=(5,8,8), grid_n_modules=8, n_settle=10, seed=0)
     score = run_grail_episode(GRAILCore(cfg), ep)
     assert score > 1.0/5                       # beats 1/vocab chance via path-integrated completion
+
+def test_flat_prior_is_near_chance_on_completion():
+    from benchmarks.baselines.flat_prior import run_flat_episode
+    from benchmarks.tasks.gridworld import make_episode
+    ep = make_episode(h=4, w=4, vocab=5, K=12, seed=2)
+    score = run_flat_episode(ep)
+    assert score <= 0.45        # no path-integration -> cannot complete held-out paths
+
+def test_backprop_mlp_runs():
+    from benchmarks.baselines.backprop_mlp import run_mlp_episode
+    from benchmarks.tasks.gridworld import make_episode
+    ep = make_episode(h=4, w=4, vocab=5, K=12, seed=2)
+    s = run_mlp_episode(ep, epochs=50)
+    assert 0.0 <= s <= 1.0
