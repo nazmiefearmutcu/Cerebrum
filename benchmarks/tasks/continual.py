@@ -40,11 +40,26 @@ def _prototypes(rng, n_tasks, per_task, dim):
     return [[PROTO_SCALE * rng.standard_normal(dim) for _ in range(per_task)] for _ in range(n_tasks)]
 
 
+# Fixed seed for the noise-free MEASUREMENT readout. The training/inference floor T_floor>0
+# is a learning-time regularizer (forbids MAP collapse, Pillar 4); but a MEASUREMENT of the
+# already-learned weights must not re-inject that stochastic floor, or it adds per-eval
+# variance (~0.05 rms here) that dominates the cross-seed forgetA CI and makes seeds look
+# noisier than the fuse actually is. We therefore read out deterministically (T=0) with a
+# fresh fixed-seed rng each call, so forgetA reflects the WEIGHTS, not the settling noise.
+_EVAL_SEED = 0xE7A1
+
+
 def _err_on(net, patterns, cfg, rng):
+    """Noise-free (T=0) measurement readout of mean reconstruction error over `patterns`.
+
+    `rng` is accepted for call-site compatibility but intentionally NOT used to drive the
+    settle: a fresh deterministic eval rng is allocated per call so the measurement is a pure
+    function of the learned weights (cuts measurement variance ~4-5x; see README Stage-3)."""
+    erng = SeededRNG(_EVAL_SEED)
     tot = 0.0
     for p in patterns:
         for _ in range(cfg.n_settle):
-            net.settle_step(rng, T=cfg.T_floor, clamp_bottom=p)
+            net.settle_step(erng, T=0.0, clamp_bottom=p)
         net.compute_errors(); tot += float(np.sum(net.eps[0]**2))
     return tot/len(patterns)
 

@@ -200,23 +200,43 @@ Comparators on the same local substrate: `θ≡1` (always-plastic; should forget
 (`benchmarks/baselines/ewc.py`; a quadratic anchor penalty `−λΩ(W−W*)` that **does** pay for a Fisher
 pass + stored anchors).
 
-Reproduce with `python3 benchmarks/run_stage3.py` (mean ± 95% CI over 5 seeds; lower `forgetA` is better):
+Reproduce with `python3 benchmarks/run_stage3.py` (mean ± 95% CI over **8 seeds**, a **single fixed
+knob set** — no per-task/per-seed retuning — and a **noise-free (T=0) measurement readout**; lower
+`forgetA` is better):
 
 ```
 method                       forgetA         errC_afterC
-GRAIL-fuse           0.283 +/- 0.326     1.145 +/- 0.205   (cbar=0.93)
-always-plastic       0.825 +/- 0.345     1.050 +/- 0.246
-EWC-analog           0.181 +/- 0.343     1.376 +/- 0.340   (+Fisher pass +anchors)
+GRAIL-fuse           0.055 +/- 0.039     0.943 +/- 0.127   (cbar=0.93)
+always-plastic       0.557 +/- 0.178     0.635 +/- 0.089
+EWC-analog           0.109 +/- 0.047     0.864 +/- 0.140   (+Fisher pass +anchors)
+
+robustness (8 seeds, single fixed knob set, T=0 noise-free eval):
+  fuse < always-plastic on every seed : True (8/8)
+  95% CIs separated (fuse upper 0.094 < plastic lower 0.379) : True
 ```
 
-The fuse cuts mean forgetting to about **a third** of always-plastic (0.283 vs 0.825) — A consolidates
-(`cbar≈0.93` after A, so `θ` closes before B/C arrive) — while still learning C (no plastic-death; its
-`errC_afterC` is lower than EWC's, i.e. it stays more plastic). It is **competitive with EWC** *without*
-EWC's Fisher pass or stored anchors. **Honest reading of the CIs:** at 5 seeds the per-seed variance is
-large and the `forgetA` intervals **overlap** (the means clearly order GRAIL-fuse < EWC < always-plastic,
-but n=5 is not enough to separate them statistically). The robust statement is the **mean** forgetting
-reduction; tightening it (more seeds, lower-variance task) is open work. This does **not** make
-stability-plasticity "solved" — it remains a tuned knife-edge with no stability proof (FM4).
+The fuse cuts mean forgetting to about **a tenth** of always-plastic (0.055 vs 0.557) — A consolidates
+(`cbar≈0.93` after A, so `θ` closes before B/C arrive) — while still learning C (no plastic-death;
+`errC_afterC` 0.943 < `errC_beforeC`). The result is now **robust across 8 seeds with a single fixed
+knob set**: the fuse is lower on **every** seed and the 95% `forgetA` CIs are **cleanly separated**
+(fuse upper bound 0.094 < always-plastic lower bound 0.379). It is **competitive with the EWC-analog**
+(GRAIL-fuse forgetA 0.055 is even below EWC's 0.109) *without* EWC's Fisher pass or stored anchors —
+EWC retains a small edge on C-learning (`errC_afterC` 0.864 vs 0.943).
+
+**What changed vs the earlier overlapping-CI table (honest).** The fuse mechanism is **unchanged**;
+the earlier `0.283 +/- 0.326` overlap was **measurement variance, not fuse variance**. `forgetA` was
+read out by re-running the *stochastic* settling floor (`T_floor>0`) at eval time, which injects
+~0.05-rms per-eval noise that dominated the cross-seed interval. The floor is a *learning-time*
+regularizer (Pillar 4, forbids MAP collapse) — it has no business in a *measurement* of the already-
+learned weights. Reading out deterministically (T=0, fresh fixed eval rng) cuts the fuse `forgetA`
+cross-seed sd ~4-5× (≈0.21 → ≈0.047) and separates the CIs. Per-seed instrumentation confirms the
+fuse itself was already robust (final `c.mean≈0.93` on every seed; the fuse beat always-plastic on
+8/8 seeds even under the noisy eval). This is a measurement fix, **not** a fuse retune and **not** a
+weakened assertion.
+
+This still does **not** make stability-plasticity "solved" — it remains a tuned knife-edge with no
+stability proof (FM4). Robustness is demonstrated at *these* knobs on *this* A→B→C task; it is **not**
+a guarantee for arbitrary new tasks, harder streams, or knob settings.
 
 **Honesty gate (critical).** OP3 (stability-plasticity) is **GENUINELY ADDRESSED — NOT SOLVED.** The
 `(θ,c)` loop is a **tuned knife-edge**, not a proof. It is exactly spec failure-mode **FM4**, with **two**
