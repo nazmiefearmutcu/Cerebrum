@@ -407,12 +407,44 @@ metaplastic fuse on three axes and **finds the break**:
   erosion cycles on shared synapses than the knobs were tuned for, wearing down A's reserve. **Exactly
   spec FM4: a tuned knife-edge, not a proof — protection-without-retuning is budget-bounded, not unconditional.**
 
+### (g) Does the LOCAL plasticity build compositional structure / does depth help? — NULL (the central bet, stressed)
+
+The earlier depth null (I6) was a readout artifact (Task-1 reads only the grid HEAD). Here we **remove the
+grid HEAD** and put depth on the causal path: inputs are `concat(P1[f1], P2[f2])` from two independent
+frozen factors; train online (local four-factor plasticity) on 13/16 combinations; test compositional
+generalization by **PC pattern-completion** — clamp the `f1` part, leave the `f2` part free, settle (T=0),
+read the completed `f2`. Compare PC depth 2 vs 3 vs 4. `python3 benchmarks/run_compositional.py` (5 seeds,
+chance = 0.25):
+
+| PC depth | held-out compositional acc | within-distribution acc |
+|---|---|---|
+| 2 areas | 0.200 ± 0.227 | 0.262 ± 0.052 |
+| 3 areas | 0.200 ± 0.227 | 0.262 ± 0.052 |
+| 4 areas | 0.200 ± 0.227 | 0.262 ± 0.052 |
+
+(flat memorizer 0.000; backprop-MLP comparator 0.067 — **no** method composes here.)
+
+**Verdict: NULL, and it is the most important honest finding.** Depth changes the result by **+0.000**
+(bit-identical per seed). The mechanism is diagnostic, not a readout artifact this time: the latent code is
+near-silent and gets *more* silent with depth (`|x|` 0.059 → 0.039 → 0.028 — the `−Πε` drift with
+`top_pred=0` decays each latent toward zero), the completed `f2` is ~9× too small in norm, and **even
+within-distribution completion sits at chance** — i.e. the local four-factor rule on this budget **never
+builds a latent that binds `f1→f2` in the first place**, so there is no hierarchical factorization for any
+depth to consult (verified robust to `eta`, width, `gamma`, feedback strength). **This is direct evidence
+on the central UNPROVEN bet (spec OP1):** at this scale, fully-local plasticity does **not** induce the
+compositional/hierarchical representation that backprop would — exactly the open problem, surfaced honestly,
+not papered over.
+
 **Frontier summary so far:** GRAIL's structured prior is a *metric* inductive bias. It **wins big and
 scales** on metric/linear relational structure (gridworld few-shot — margin holds and widens to 16×16;
 transitive order — advantage grows with order length), and **degrades to baseline** on non-metric/
 asymmetric structure (directed graphs, FM7). The metaplastic fuse **reduces first-task forgetting**
 robustly within a **budget-bounded** regime and **loses its statistical guarantee** beyond it (FM4).
-Every boundary is **mapped, not hidden**, and this is **not** a scaling-solved claim.
+And the **local plasticity does not, at this scale, build compositional/hierarchical structure** — depth
+is inert because the deep latents never factorize (the crux of the scaling bet, OP1). Every boundary is
+**mapped, not hidden**, and this is emphatically **not** a scaling-solved claim — the sample-efficiency
+win is real and lives specifically in the *frozen structured prior*, not (yet) in what the local rule
+learns on its own.
 
 ---
 
