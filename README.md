@@ -219,6 +219,38 @@ replay/iid/Fisher/anchors**, which is the only success axis claimed here.
 
 ---
 
+## Task-3 result — energy / operations (success axis 2)
+
+GRAIL is event-driven: an error neuron only "spikes" (and drives its synapses) when its prediction
+error exceeds threshold, so **dynamic switching energy decays as the network becomes competent**
+(`ε → 0` ⇒ silent units ⇒ fewer synaptic ops). The learning signal that crosses the whole network is a
+**single scalar** `M`, versus a backprop network's per-layer error **vector** (`O(depth)` elements).
+
+Reproduce with `python3 benchmarks/run_energy.py` (reconstruction task; noise-free `T=0` measurement so
+the metric reflects systematic error, not the Langevin noise floor):
+
+```
+ pass   recon_err eps_spars@0.1   dyn_ops  dyn_energy
+    0      1.2787         0.833     133.3       47.12
+   30      0.3840         0.633     101.3       26.08
+  ...
+  300      0.2847         0.633      96.0       22.68
+```
+
+As competence rises, **recon_err falls ~4.5×** and the magnitude-weighted **dynamic switching energy
+falls ~2.1×**; the thresholded spike-sparsity@0.1 falls modestly (0.83 → 0.63). Meanwhile a matched
+**dense backprop** net does **320 MAC ops/step with `ρ=1` (no decay)**, and its learn-time global
+communication is **16 error-vector elements (`O(depth)`)** versus GRAIL's **1 scalar `M`**.
+
+**Honesty gate.** Only the **dynamic** switching term decays — **static/leakage power and settle-time
+energy do NOT** decay with competence, and the iterative settling can *cost more* steps precisely when
+the posterior is interesting (spec FM2). The thresholded spike count is conservative (the local learner
+plateaus at `recon ≈ 0.25`, so some units stay above the 0.1 threshold); the magnitude-weighted
+`dyn_energy` tracks the true error decay. This is a small task — **not** a scaling or wall-clock claim,
+and the infer-time broadcast traffic is **not** O(1).
+
+---
+
 ## Repository layout
 
 ```
