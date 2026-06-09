@@ -369,16 +369,16 @@ the grid advantage collapses:
 | **metric** gridworld | 10 | **0.381 ± 0.079** | 0.189 ± 0.085 | 0.230 ± 0.164 | 0.20 |
 | **non-metric** digraph | 10 | 0.322 ± 0.032 | 0.233 ± 0.100 | 0.335 ± 0.140 | 0.20 |
 | **non-metric** digraph | 20 | 0.357 ± 0.033 | 0.256 ± 0.104 | 0.364 ± 0.076 | 0.20 |
+| **directed tree** (hierarchy) | 5 | 0.528 ± 0.237 | **0.687 ± 0.165** | 0.468 ± 0.432 | 0.20 |
+| **directed tree** (hierarchy) | 10 | 0.425 ± 0.219 | **0.643 ± 0.123** | 0.338 ± 0.228 | 0.20 |
+| **directed tree** (hierarchy) | 20 | 0.344 ± 0.233 | **0.462 ± 0.102** | 0.376 ± 0.234 | 0.20 |
 
-On the metric task GRAIL is ~2× flat-prior and beats the MLP; on the non-metric graph the margin over
-flat shrinks to ~0.09 and **the free-form backprop-MLP matches or edges out GRAIL** — the opposite
-ordering. **Why:** the grid HEAD does `pos += action` (commutative vector addition) and reads
-`[cos(k·pos), sin(k·pos)]`; this assumes node identity is a path-independent function of summed actions.
-On a directed graph that fails (verified: 44/48 steps asymmetric; 30 node-pairs reachable by ≥2 paths
-with divergent vector sums), so the bind-time and query-time grid codes for the *same* node mismatch and
-completion retrieves the wrong observation. The rotation algebra has no consistent embedding to ride on,
-so the prior degrades to ~flat. **This is the correct, valuable negative result** — GRAIL's prior is
-specifically a *metric* prior, not a universal relational one.
+On the metric task GRAIL is ~2× flat-prior and beats the MLP; on the non-metric graphs (both the random digraph and the directed tree hierarchy) the grid advantage completely collapses. In the directed tree/hierarchy graph, the **flat-prior baseline significantly outperforms both GRAIL and the MLP**.
+
+**Why (Failure Mode 7 - FM7):**
+1. **Grid Rotations Algebra Conflict**: The grid HEAD integrates exogenous path steps linearly in a 2D Euclidean coordinate system ($\mathbf{x}_{\text{next}} = \mathbf{x} + \mathbf{v}$). This forces transition compositions to commute ($v_{left} + v_{right} = v_{right} + v_{left}$). On a directed hierarchy, transitions do not commute (left-then-right lands on node 4, right-then-left lands on node 5). This forces the grid prior to map distinct nodes to identical grid codes, causing severe spatial aliasing.
+2. **Loop-Closure Contradiction**: Returning to a parent node from left/right children requires $v_{left} + v_{parent} = \mathbf{0}$ and $v_{right} + v_{parent} = \mathbf{0}$, implying $v_{left} = v_{right}$, which collapses the left/right branches into a single line. A non-metric hierarchy has no consistent coordinate system that can satisfy loop-closures without collapsing the graph structure.
+3. **Start-Target Overlap Phenomenon**: On short walks in a tree (e.g. $K=5$, $K=10$), a high proportion of 2-hop compositions loop back to the start node (e.g., child then parent; ~60.7% for $K=5$, ~55.4% for $K=10$). Since the `flat-prior` baseline simply returns the start node's observation, it achieves high accuracy on these looping queries. However, GRAIL's vector accumulation drifts due to the loop-closure contradiction, resulting in incorrect grid codes and lower recall.
 
 **Transitive inference (a metric/linear order) → the prior HOLDS, distinctively at scale.** Train on
 ADJACENT pairs only (A>B, B>C, …), test never-co-observed NON-adjacent pairs (B vs D):

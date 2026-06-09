@@ -203,6 +203,7 @@ def train_pipeline_module(task, cfg, pcfg, passes, eta_w_scale=0.6, tau_w=1.0):
             #      gated, exactly as GRAILNet.step does) so the structural store grows then stops ----
             top_pred = None
             if pcfg.use_grid:
+                pcfg._grid.reset()
                 pcfg._grid.transition(_combo_action(f1, f2, task.A, task.B))
                 M_preview = 1.0 - nm.r_bar
                 pcfg._grid.bind(obs, M=max(M_preview, 0.0))
@@ -250,6 +251,8 @@ def settle_top_latent_pipeline(net, obs, steps, pcfg, f1=0, f2=0, A=1, B=1, seed
         pcfg._grid.transition(_combo_action(f1, f2, A, B))
         top_pred = _grid_top_pred(pcfg, net.cfg.dims[-1])
         pcfg._grid.pos = saved
+    if pcfg.use_broadcast and pcfg._wksp is not None:
+        pcfg._wksp.slots[:] = 0.0
     bcast = _broadcast(pcfg, net)
     net.x = [np.zeros_like(xl) for xl in net.x]
     for _ in range(steps):
@@ -275,6 +278,7 @@ def train_full_grailnet(task, cfg, passes, seed=0):
         order_rng.shuffle(order)
         for (f1, f2) in order:
             obs = task.embed(f1, f2)
+            net.grid.reset()
             net.step([obs], action=_combo_action(f1, f2, task.A, task.B), reward=1.0)
     return net
 
@@ -284,7 +288,17 @@ def settle_top_latent_full(net, task, f1, f2, T=0.0):
     every module (only one here) under grid top-down + current workspace broadcast, read x[top].
     Uses the public net.settle_only (no plasticity) so the read reflects the LEARNED weights."""
     obs = task.embed(f1, f2)
-    _, reads = net.settle_only([obs], action=_combo_action(f1, f2, task.A, task.B), T=T)
+    for mod in net.modules:
+        mod.x = [np.zeros_like(xl) for xl in mod.x]
+    net.grid.reset()
+    net.workspace.slots[:] = 0.0
+
+    orig_n_settle = net.cfg.n_settle
+    try:
+        object.__setattr__(net.cfg, 'n_settle', 24)
+        _, reads = net.settle_only([obs], action=_combo_action(f1, f2, task.A, task.B), T=T)
+    finally:
+        object.__setattr__(net.cfg, 'n_settle', orig_n_settle)
     return reads[0].copy()
 
 
@@ -299,7 +313,7 @@ def pipeline_probe(task, train, held, dims, condition, passes=60, seed=0, decode
     steps = 24
     f1tr = np.array([f for f, _ in train]); f2tr = np.array([f for _, f in train])
     f1te = np.array([f for f, _ in held]); f2te = np.array([f for _, f in held])
-    cfg = _maybe_balance(GRAILConfig(dims=dims, n_settle=12, seed=seed))
+    cfg = _maybe_balance(GRAILConfig(dims=dims, n_settle=12, seed=seed, eta_w=0.6, tau_w=1.0))
 
     if condition == "full":
         trained = train_full_grailnet(task, cfg, passes=passes, seed=seed)
