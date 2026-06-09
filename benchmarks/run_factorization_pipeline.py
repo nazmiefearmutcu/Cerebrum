@@ -86,6 +86,18 @@ _GRID_ACTION_SCALE = 0.5       # exogenous action magnitude derived from the com
 
 CONDITIONS = ("bare", "grid", "broadcast", "fuse", "full")
 
+# OPT-IN measurement toggle (default OFF -> byte-identical to the original probe; the bare smoke
+# test stays green). When GRAIL_BALANCE_GRID_PRECISION=1 every cfg built below carries the new
+# precision-balancing flag so we can measure whether the grid/full factorization RECOVERS.
+_BALANCE = os.environ.get("GRAIL_BALANCE_GRID_PRECISION", "0") not in ("0", "", "false", "False")
+
+
+def _maybe_balance(cfg):
+    """Apply the opt-in grid-precision-balancing flag to a cfg iff the env toggle is set."""
+    if not _BALANCE:
+        return cfg
+    return replace(cfg, balance_grid_precision=True)
+
 
 # ------------------------------------------------------------------------------------------
 # A small per-condition controller that holds the pipeline pieces (grid / workspace / fuse).
@@ -287,7 +299,7 @@ def pipeline_probe(task, train, held, dims, condition, passes=60, seed=0, decode
     steps = 24
     f1tr = np.array([f for f, _ in train]); f2tr = np.array([f for _, f in train])
     f1te = np.array([f for f, _ in held]); f2te = np.array([f for _, f in held])
-    cfg = GRAILConfig(dims=dims, n_settle=12, seed=seed)
+    cfg = _maybe_balance(GRAILConfig(dims=dims, n_settle=12, seed=seed))
 
     if condition == "full":
         trained = train_full_grailnet(task, cfg, passes=passes, seed=seed)

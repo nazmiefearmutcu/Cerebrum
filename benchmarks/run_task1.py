@@ -8,6 +8,11 @@ from benchmarks.tasks.graph_completion import run_grail_episode
 from benchmarks.baselines.flat_prior import run_flat_episode
 from benchmarks.baselines.backprop_mlp import run_mlp_episode
 
+# OPT-IN measurement toggle (default OFF -> behavior unchanged). When
+# GRAIL_BALANCE_GRID_PRECISION=1 the GRAIL grid-completion model carries the new
+# precision-balancing flag, so we can confirm the grid few-shot win still holds.
+_BALANCE = os.environ.get("GRAIL_BALANCE_GRID_PRECISION", "0") not in ("0", "", "false", "False")
+
 def run_sweep(Ks=(5,10,20), seeds=(0,1,2,3,4), h=4, w=4, vocab=5):
     # out["grail"][K] = mean (backward-compatible float); out["grail_raw"][K] = per-seed list (for CIs)
     out = {"grail":{}, "flat":{}, "mlp":{}, "grail_raw":{}, "flat_raw":{}, "mlp_raw":{}}
@@ -15,7 +20,8 @@ def run_sweep(Ks=(5,10,20), seeds=(0,1,2,3,4), h=4, w=4, vocab=5):
         g=[]; f=[]; m=[]
         for s in seeds:
             ep = make_episode(h=h, w=w, vocab=vocab, K=K, seed=s)
-            cfg = GRAILConfig(dims=(vocab,8,8), grid_n_modules=8, n_settle=10, seed=s)
+            cfg = GRAILConfig(dims=(vocab,8,8), grid_n_modules=8, n_settle=10, seed=s,
+                              balance_grid_precision=_BALANCE)
             g.append(run_grail_episode(GRAILCore(cfg), ep))
             f.append(run_flat_episode(ep))
             m.append(run_mlp_episode(ep, epochs=80))

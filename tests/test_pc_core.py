@@ -28,3 +28,28 @@ def test_energy_decreases_when_error_decreases():
     for l in range(len(pc.W)): pc.W[l][:] = 0.0
     pc.compute_errors(top_pred=np.zeros(2)); e_lo = pc.energy()
     assert e_lo <= e_hi  # zero error -> lower precision-weighted energy term
+
+def test_balance_grid_precision_off_is_identity():
+    # flag OFF: predict(top) returns the raw top_pred unchanged (default behavior preserved)
+    pc, c = make()
+    pc.x[0][:] = np.array([0.1, 0.2, -0.1, 0.3])
+    pc.x[1][:] = np.array([0.2, -0.1, 0.05])
+    pc.compute_errors(top_pred=np.zeros(2))           # populate eps[L-2]
+    big = np.array([40.0, -50.0])                     # grid-scale prediction
+    assert np.allclose(pc.predict(pc.L - 1, top_pred=big), big)
+
+def test_balance_grid_precision_on_downscales_dominating_pred():
+    # flag ON: a huge top_pred is scaled DOWN to the top-area bottom-up signal scale; a small one isn't
+    c = GRAILConfig(dims=(4, 3, 2), seed=0, balance_grid_precision=True)
+    pc = PCAreas(c)
+    pc.x[0][:] = np.array([0.1, 0.2, -0.1, 0.3])
+    pc.x[1][:] = np.array([0.2, -0.1, 0.05])
+    pc.x[2][:] = np.array([0.05, -0.05])
+    pc.compute_errors(top_pred=np.zeros(2))           # populate eps so bottom-up ref is defined
+    ref = pc._bottomup_scale_top()
+    big = np.array([40.0, -50.0])                     # grid-scale prediction (norm >> ref)
+    out = pc.predict(pc.L - 1, top_pred=big)
+    assert np.linalg.norm(out) < np.linalg.norm(big)              # was crushing -> down-weighted
+    assert np.isclose(np.linalg.norm(out), ref, rtol=1e-6)        # matched to bottom-up scale
+    small = np.array([1e-4, -1e-4])                   # already below ref -> never amplified
+    assert np.allclose(pc.predict(pc.L - 1, top_pred=small), small)
