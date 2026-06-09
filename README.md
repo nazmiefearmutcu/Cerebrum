@@ -281,6 +281,7 @@ replay/iid/Fisher/anchors**, which is the only success axis claimed here.
 | Factorized latent + compositional | the central bet (OP1) | **HOLDS (corrected)** | linear-probe: held-out `f1`/`f2` decode **0.92 ± 0.05** (chance 0.167), beats untrained/random-proj; the old `f1→f2` *completion* null was a degenerate readout (§g) |
 | More factors / cardinality (K→4, card→8) | the central bet, scaled | **HOLDS over chance + over init; learned-over-input margin BREAKS by card≈8** | held-out per-factor decode stays far above chance & above the untrained latent at every K≤4/card≤8 (margin over init *grows* +0.07→+0.13); but the margin over a random-projection of the obs shrinks +0.05→+0.00 as cardinality grows — at high card the trivially-factorable concat input is decodable by any same-dim linear map (§g2) |
 | Systematic vs interpolative hold-out (C2-HardSplits) | the central bet, systematicity | **SYSTEMATIC on the learned margin (well-powered card=8)** | the paired learned margin (trained−untrained, within-seed) stays CI-clean **positive** under *leave-a-value-in-few-contexts* (+0.12) and *structured-block* hold-out (+0.15) — actually **larger** than the random/interpolation split (+0.08); absolute decode drops under sparse context (a noisier class-mean for an oracle too), but the factored subspace transfers across contexts; learned-over-*input* is ≈0 (same input ceiling as §g2) (§g3) |
+| Factorization in the FULL pipeline (C3-FullPipeline) | robustness of the central bet to the whole system | **SURVIVES +broadcast/+fuse; BREAKS under +grid-topdown & full-GRAILNet** | held-out decode stays **0.92→0.91/0.91** with the workspace broadcast or the metaplastic fuse added (both beat untrained), but **collapses to 0.47 (below untrained) under the grid top-down and to 0.11 (chance) in the full GRAILNet**; mechanism is the grid HEAD's never-decayed Hebbian content store, whose top-down prediction (\|x\|≈47 vs bare 0.12) **dominates the top area** so the latent reads grid PHASE, not the obs factors (§g4) |
 
 **Reading:** the demonstrated sample-efficiency win lives specifically in the **frozen metric structured
 prior** (and scales there); the **local learning rule does build a compositionally-generalizing factored
@@ -558,6 +559,50 @@ new / structured-out contexts. The **stronger learned-beyond-input** claim (pair
 so this is a **systematicity-of-the-learned-margin** result, **not** a claim of decoding beyond the input.
 Every cell is from the actual numbers; nothing is engineered to win.
 
+### (g4) Does the factored latent SURVIVE the FULL unified pipeline? (C3-FullPipeline)
+
+§g–§g3 measured the factored latent on a **bare** `PCAreas` trained by the local rule. C3 asks the
+**robustness** question: does that 0.92 held-out factor-decode survive when the *same* cortical module
+operates inside the richer `grail/unified.GRAILNet` dynamics — with the **grid-HEAD structural top-down**
+active, and/or the **thalamo-cortical workspace broadcast** feeding back, and/or the **surprise-gated
+metaplastic fuse** gating the local plasticity — individually and **all together** (the literal `GRAILNet`,
+`n_modules=1`)? Same linear-probe measurement, same **untrained** (same arch + same pipeline pieces, no
+plasticity) and **random-projection** controls. The `bare` condition is verified **bit-for-bit identical** to
+`run_factorization.py`'s `_train_pc` (so the comparison is honest, not a reimplementation).
+`python3 benchmarks/run_factorization_pipeline.py` (2-factor card=6, part_dim=8, dims=(obs,24,24), **5 seeds**,
+combined NCM+logistic probe, held-out factor-avg decode; chance 0.167):
+
+| condition | what's added | trained (held-out) | untrained (init) | random-proj | trained-latent \|x\| | verdict |
+|---|---|---|---|---|---|---|
+| bare | nothing (= §g reference) | **0.920 ± 0.051** | 0.825 | 0.850 | 0.118 | **SURVIVES** (beats untrained) |
+| broadcast | workspace efference copy → bottom area | **0.915 ± 0.064** | 0.825 | 0.850 | 0.125 | **SURVIVES** (beats untrained) |
+| fuse | metaplastic θ∈[0,1] gates the four-factor update | **0.910 ± 0.047** | 0.825 | 0.850 | 0.142 | **SURVIVES** (beats untrained) |
+| grid | grid-HEAD structural top-down at the TOP area | 0.465 ± 0.078 | 0.825 | 0.850 | **47.2** | **BREAKS** (below untrained — learning *degrades* it) |
+| full | grid + gate + workspace + fuse (real `GRAILNet`) | 0.110 ± 0.017 | 0.315 | 0.850 | **20.9** | **BREAKS** (collapses to chance) |
+
+**Verdict: factorization is robust to the broadcast and the fuse, but the grid top-down (and therefore the
+full GRAILNet) DESTROYS it.** This is an honest, mechanistically-explained split — not a uniform win and not a
+uniform loss.
+
+**Mechanism (read straight off the `|x|` column):** the bare cortical latent is a **small, sparse,
+obs-driven code** (`|x|≈0.12`; the L1 settling prior keeps it quiet, and the factor structure lives in that
+small signal). The **broadcast** enters only the *bottom* area as a prediction scaled to the obs, and the
+**fuse** only *shrinks* the weight update (θ≤1) — neither perturbs the obs-driven latent, so the decode and
+the latent norm are unchanged and factorization **survives**. The **grid top-down** is different: `GRAILNet`
+binds the observation into the grid HEAD's Hebbian **content store** every step (reward-PE-gated, so it tapers
+— but it is **never decayed**), accumulating a store whose structural top-down prediction has **norm ≈ 47, ~400×
+the bare latent**. That prediction is consumed at the module's **top area**, so the latent is driven to track
+**per-combo grid PHASE** (a path-integrated structural code) instead of the obs factors — the `|x|` blow-up
+*tracks* the decode collapse to 0.47, and it falls **below the untrained latent**, i.e. learning under a
+dominating structural prior actively *worsens* the linearly-decodable factor code. The **full GRAILNet** stacks
+the grid prior with the gate/workspace recurrence and collapses to chance (0.11). **Takeaway:** the
+representation win is a property of the **isolated cortical module under the local rule**, *not* of the whole
+integrated system as currently wired — the structured grid prior and the cortical factorizer **compete for the
+top area**, and at this scale the (unbounded-by-design, bounded-only-by-the-reward-gate) grid prior wins. The
+honest implication for OP1: the factored latent and the structured prior are **two separate sample-efficiency
+levers that do not yet cooperate** — composing them (e.g. decaying the content store, or giving the grid prior
+its own area instead of the cortical top) is open frontier work, not a solved property.
+
 **Frontier summary so far:** GRAIL's structured prior is a *metric* inductive bias. It **wins big and
 scales** on metric/linear relational structure (gridworld few-shot — margin holds and widens to 16×16;
 transitive order — advantage grows with order length), and **degrades to baseline** on non-metric/
@@ -571,7 +616,11 @@ Every boundary is **mapped, not hidden**, and this is emphatically **not** a sca
 sample-efficiency win still lives specifically in the *frozen structured prior*, and the factorization result
 is a **linear-decodability** correction (the latent *represents* the factors well above chance), not a claim
 that the local rule alone solves arbitrary compositional generalization; one configuration (Kolen-Pollack
-alignment) even *degrades* it. Strengths and limits both mapped.
+alignment) even *degrades* it. And that factored latent is a property of the **isolated cortical module** — it
+**survives the workspace broadcast and the metaplastic fuse but is DESTROYED by the grid top-down and the full
+`GRAILNet`** (C3-FullPipeline, §g4): the structured grid prior's never-decayed content store dominates the top
+area and the latent reads grid phase, not the obs factors. So the factorizer and the structured prior are two
+**separate, not-yet-cooperating** sample-efficiency levers. Strengths and limits both mapped.
 
 ---
 
