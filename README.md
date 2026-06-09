@@ -279,6 +279,7 @@ replay/iid/Fisher/anchors**, which is the only success axis claimed here.
 | Task similarity / interference | continual | HOLDS (+ plastic-death tax) | overlap gives positive transfer to A; cost shows as worse newest-task error |
 | Continual training budget (passes) | continual | **BREAKS ≥200 passes** | fixed `tau_c/beta_c`: more budget = more erosion of A's reserve (FM4 knife-edge) |
 | Factorized latent + compositional | the central bet (OP1) | **HOLDS (corrected)** | linear-probe: held-out `f1`/`f2` decode **0.92 ± 0.05** (chance 0.167), beats untrained/random-proj; the old `f1→f2` *completion* null was a degenerate readout (§g) |
+| More factors / cardinality (K→4, card→8) | the central bet, scaled | **HOLDS over chance + over init; learned-over-input margin BREAKS by card≈8** | held-out per-factor decode stays far above chance & above the untrained latent at every K≤4/card≤8 (margin over init *grows* +0.07→+0.13); but the margin over a random-projection of the obs shrinks +0.05→+0.00 as cardinality grows — at high card the trivially-factorable concat input is decodable by any same-dim linear map (§g2) |
 
 **Reading:** the demonstrated sample-efficiency win lives specifically in the **frozen metric structured
 prior** (and scales there); the **local learning rule does build a compositionally-generalizing factored
@@ -478,6 +479,42 @@ was an unsolvable readout, not absence of factorization.
 **Honest caveat (secondary finding).** Turning the **Kolen-Pollack feedback alignment ON** (`align_feedback=True`)
 **degrades** held-out factor decode to **0.415 ± 0.117 — clearly *below* the untrained latent (0.825)**: at
 this scale, forcing `B→Wᵀ` alignment *worsens* the factored structure rather than helping it. Reported as-is.
+
+### (g2) Pushing it harder — MORE factors and LARGER cardinality (C1-MoreFactors)
+
+Does the §g positive **hold as the factor space grows**? We extend the same probe to **K = 3 and K = 4
+independent factors** with **per-factor cardinality 4 → 8** (obs = concat of `K` frozen parts, train on a
+**subsampled** slice of the exponential combo grid, hold out the rest; every factor value still seen in
+training so each is decodable in principle). The **NCM probe is the headline** because the logistic-GD probe
+is *over-powered* at this train-set size — it saturates **all** conditions (trained, untrained, random-proj,
+raw) to ≈1.000 and so cannot discriminate learned structure from the input's trivial linear factorability;
+the NCM probe has no free nonlinearity, so its margins are real. `python3 benchmarks/run_factorization_multi.py`
+(part_dim=8, dims=(obs,24,24), 5 seeds, budget 150 sampled combos, **NCM** held-out per-factor decode averaged
+over factors):
+
+| config | trained | untrained (init bias) | random-proj (obs) | chance | margin /init | margin /input |
+|---|---|---|---|---|---|---|
+| K=3, card=4 | **0.951 ± 0.052** | 0.877 ± 0.046 | 0.902 ± 0.050 | 0.250 | +0.074 | +0.049 |
+| K=3, card=6 | **0.904 ± 0.020** | 0.819 ± 0.025 | 0.855 ± 0.036 | 0.167 | +0.084 | +0.049 |
+| K=3, card=8 | **0.812 ± 0.064** | 0.686 ± 0.045 | 0.807 ± 0.061 | 0.125 | +0.126 | **+0.004** |
+| K=4, card=4 | **0.927 ± 0.061** | 0.821 ± 0.044 | 0.897 ± 0.032 | 0.250 | +0.106 | +0.030 |
+| K=4, card=6 | **0.818 ± 0.052** | 0.722 ± 0.061 | 0.784 ± 0.070 | 0.167 | +0.096 | +0.033 |
+| K=4, card=8 | **0.702 ± 0.020** | 0.574 ± 0.035 | 0.696 ± 0.038 | 0.125 | +0.128 | **+0.007** |
+
+**Verdict: the factorization HOLDS in the two senses that matter most, and the learned-over-input claim
+BREAKS at high cardinality.** (1) Trained held-out decode is **far above chance at every config** (0.70–0.95
+vs 0.125–0.25) — the factors are linearly present in the latent throughout. (2) The **load-bearing learned
+margin (trained − untrained)** stays clearly positive and actually **GROWS with difficulty (+0.07 → +0.13)**:
+as the task gets harder the *local rule* contributes *more* of the decodable structure beyond the
+architecture's random-init bias. (3) But the **stronger margin over a same-dim random projection of the obs
+shrinks toward zero as cardinality grows (+0.05 → +0.00 by card=8)**: with a richer concat input a *generic*
+linear map already decodes the factors, so above ~card 6–8 the trained latent is **no better than the
+trivially-factorable input** on this metric. **Mechanism:** the obs is `concat(parts)`, so the factor
+subspaces are axis-aligned in the input; at large cardinality there are enough distinct frozen parts that a
+random projection preserves them (Johnson–Lindenstrauss), saturating the input floor. So the honest boundary
+is **not** a collapse to chance or to init (the rule keeps building real structure) — it is that the *evidence
+the latent learned something **beyond the input*** runs out of headroom once the input is itself linearly
+trivial. Each cell is reported from the actual numbers; nothing is engineered to win.
 
 **Frontier summary so far:** GRAIL's structured prior is a *metric* inductive bias. It **wins big and
 scales** on metric/linear relational structure (gridworld few-shot — margin holds and widens to 16×16;
