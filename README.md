@@ -281,7 +281,7 @@ replay/iid/Fisher/anchors**, which is the only success axis claimed here.
 | Factorized latent + compositional | the central bet (OP1) | **HOLDS (corrected)** | linear-probe: held-out `f1`/`f2` decode **0.92 ± 0.05** (chance 0.167), beats untrained/random-proj; the old `f1→f2` *completion* null was a degenerate readout (§g) |
 | More factors / cardinality (K→4, card→8) | the central bet, scaled | **HOLDS over chance + over init; learned-over-input margin BREAKS by card≈8** | held-out per-factor decode stays far above chance & above the untrained latent at every K≤4/card≤8 (margin over init *grows* +0.07→+0.13); but the margin over a random-projection of the obs shrinks +0.05→+0.00 as cardinality grows — at high card the trivially-factorable concat input is decodable by any same-dim linear map (§g2) |
 | Systematic vs interpolative hold-out (C2-HardSplits) | the central bet, systematicity | **SYSTEMATIC on the learned margin (well-powered card=8)** | the paired learned margin (trained−untrained, within-seed) stays CI-clean **positive** under *leave-a-value-in-few-contexts* (+0.12) and *structured-block* hold-out (+0.15) — actually **larger** than the random/interpolation split (+0.08); absolute decode drops under sparse context (a noisier class-mean for an oracle too), but the factored subspace transfers across contexts; learned-over-*input* is ≈0 (same input ceiling as §g2) (§g3) |
-| Factorization in the FULL pipeline (C3-FullPipeline) | robustness of the central bet to the whole system | **SURVIVES +broadcast/+fuse; BREAKS under +grid-topdown & full-GRAILNet** | held-out decode stays **0.92→0.91/0.91** with the workspace broadcast or the metaplastic fuse added (both beat untrained), but **collapses to 0.47 (below untrained) under the grid top-down and to 0.11 (chance) in the full GRAILNet**; mechanism is the grid HEAD's never-decayed Hebbian content store, whose top-down prediction (\|x\|≈47 vs bare 0.12) **dominates the top area** so the latent reads grid PHASE, not the obs factors (§g4) |
+| Factorization in the FULL pipeline (C3-FullPipeline) | robustness of the central bet to the whole system | **SURVIVES +broadcast/+fuse; grid-topdown competition FIXED; full-GRAILNet still open** | decode stays 0.92→0.91 with broadcast/fuse; the grid top-down originally collapsed it to 0.47 (its never-decayed store, \|x\|≈47, dominated the top area), now **FIXED by the opt-in `balance_grid_precision` precision-gain → +grid recovers to 0.910 with grid few-shot byte-identical**; the **full GRAILNet residual (0.11→0.28) is an honest OPEN issue** — refuted as under-training (fast eta+150 passes doesn't recover it), a deeper grid+gate+workspace interaction (§g4) |
 
 **Reading:** the demonstrated sample-efficiency win lives specifically in the **frozen metric structured
 prior** (and scales there); the **local learning rule does build a compositionally-generalizing factored
@@ -602,6 +602,27 @@ top area**, and at this scale the (unbounded-by-design, bounded-only-by-the-rewa
 honest implication for OP1: the factored latent and the structured prior are **two separate sample-efficiency
 levers that do not yet cooperate** — composing them (e.g. decaying the content store, or giving the grid prior
 its own area instead of the cortical top) is open frontier work, not a solved property.
+
+**Fix attempt (precision-balance, merged opt-in `balance_grid_precision`, default OFF).** Three parallel
+approaches were tried (bound/decay the content store; split the top area into grid/free subspaces;
+precision-balance the grid top-down to the bottom-up signal scale). **The precision-balance fix RESOLVES the
+isolated grid-vs-factor competition:** with `balance_grid_precision=True` the **`+grid` condition recovers from
+0.465 → 0.910** (latent `|x|` 47 → 0.18, again above the untrained control) **while the grid few-shot
+graph-completion win is byte-identical** (the fix is a PC-local precision/gain down-weight on a dominating
+top-down prediction; it only rescales the cortical top-error, never the grid's own completion readout). So the
+specific mechanism the probe named — the grid store dominating the top area — is fixed, and the two levers
+**do cooperate on the isolated grid axis**.
+
+**But the FULL GRAILNet residual is NOT yet resolved, and it is NOT under-training (refuted).** With the fix on,
+`full` rises only 0.11 → 0.28 (≈ untrained); the grid no longer dominates (`|x|` 20.9 → 0.4), yet the factor
+code still does not form. We tested the natural "it just under-trains" explanation (GRAILNet's default
+`eta_w/τ_w ≈ 1e-4` is ~200× slower than the probe's): **running the full GRAILNet at the fast `eta≈0.6` and up to
+150 passes does NOT recover it** (decode stays ~0.29 ≈ untrained). So the residual is a **deeper interaction of
+grid + gate + workspace as `GRAILNet.step` wires them together** — each piece *alone* preserves factorization
+(with the fix), but the full integration still erases it for a reason beyond top-area domination and beyond
+learning budget. This is an **honest open issue**, not a solved one — the next investigation is which specific
+coupling in the unified step (broadcast-into-bottom during training, gate dynamics, or the settle/learn order)
+disrupts the obs-driven code.
 
 **Frontier summary so far:** GRAIL's structured prior is a *metric* inductive bias. It **wins big and
 scales** on metric/linear relational structure (gridworld few-shot — margin holds and widens to 16×16;
