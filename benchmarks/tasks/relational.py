@@ -77,15 +77,73 @@ class RelationalGraph:
         return self._relvec[relation].copy()
 
 
+class TreeRelationalGraph:
+    """Directed tree or hierarchical graph with asymmetric, non-commuting relations and per-node obs.
+    
+    The node relations correspond to:
+      - Relation 0: Parent relation (moves up the tree hierarchy).
+      - Relations 1 to n_relations-1: Child relations (move down the tree hierarchy).
+    """
+
+    def __init__(self, n_nodes, n_relations, vocab, seed=0):
+        self.n_nodes = n_nodes
+        self.n_relations = n_relations
+        self.vocab = vocab
+        rng = np.random.default_rng(seed)
+        
+        # per-node one-hot observation content (no structure)
+        self._obj = rng.integers(0, vocab, size=n_nodes)
+        
+        # Branching factor is the number of child relations
+        B = n_relations - 1
+        assert B >= 1, "n_relations must be at least 2 to support a parent and at least one child relation"
+        
+        # Successor table: _succ[r][a] = node reached by following relation r out of a.
+        # Node 0 is the root.
+        succ = np.zeros((n_relations, n_nodes), dtype=np.int64)
+        for u in range(n_nodes):
+            # Parent relation (relation 0):
+            # The root (0) is its own parent (self-loop).
+            # Other nodes u have parent (u - 1) // B.
+            succ[0, u] = 0 if u == 0 else (u - 1) // B
+            
+            # Child relations (relations 1 to B):
+            for r in range(1, n_relations):
+                child_idx = u * B + r
+                if child_idx < n_nodes:
+                    succ[r, u] = child_idx
+                else:
+                    succ[r, u] = u  # self-loop at leaf nodes
+                    
+        self._succ = succ
+        
+        # Frozen arbitrary 2D label vector per relation id (uncorrelated with the hierarchy)
+        rng_v = np.random.default_rng(seed + 4242)
+        self._relvec = rng_v.standard_normal((n_relations, 2))
+
+    def obs_at(self, node):
+        v = np.zeros(self.vocab)
+        v[self._obj[node % self.n_nodes]] = 1.0
+        return v
+
+    def step(self, node, relation):
+        """Follow directed relation `relation` out of `node`."""
+        return int(self._succ[relation, node % self.n_nodes])
+
+    def relation_vec(self, relation):
+        """Frozen external 2D label for a relation id (fed to the grid as Exogenous)."""
+        return self._relvec[relation].copy()
+
+
 @dataclass
 class Episode:
-    g: RelationalGraph
+    g: object
     walk: list           # list of (node, relation_id, relation_vec)
     observed_nodes: set
     queries: list        # (start_node, rel_path[list of relation_ids], target_node)
 
 
-def make_episode(n_nodes, n_relations, vocab, K, seed=0):
+def make_episode(n_nodes, n_relations, vocab, K, seed=0, graph_class=RelationalGraph):
     """Walk K random directed relation-steps; bind obs at each visited node.
 
     Held-out queries are 2-hop relation COMPOSITIONS r1 then r2 such that:
@@ -94,10 +152,9 @@ def make_episode(n_nodes, n_relations, vocab, K, seed=0):
         walked edge,
       - the target node was observed during the walk (so its obs is known / scorable).
     The agent must therefore predict obs at `target` by COMPOSING relations it has seen,
-    exactly the few-shot relational-reasoning ask. On a metric graph this is what path
-    integration nails; on this non-metric graph it should fail.
+    exactly the few-shot relational-reasoning ask.
     """
-    g = RelationalGraph(n_nodes, n_relations, vocab, seed=seed)
+    g = graph_class(n_nodes, n_relations, vocab, seed=seed)
     rng = np.random.default_rng(seed + 1)
     node = 0
     walk = []
@@ -192,89 +249,3 @@ def run_grail_episode(net, ep):
         if pred.size and np.argmax(pred) == np.argmax(g.obs_at(target)):
             correct += 1
     return correct / len(ep.queries) if ep.queries else 0.0
-
-
-class HierarchyGraph:
-    """Directed tree/hierarchy graph using heap-like binary tree indexing and per-node obs."""
-
-    def __init__(self, n_nodes, vocab, seed=0):
-        self.n_nodes = n_nodes
-        self.n_relations = 3
-        self.vocab = vocab
-        rng = np.random.default_rng(seed)
-        # per-node one-hot observation content
-        self._obj = rng.integers(0, vocab, size=n_nodes)
-        
-        # FROZEN arbitrary 2D label vector per relation id (0=parent, 1=child_left, 2=child_right).
-        rng_v = np.random.default_rng(seed + 4242)
-        self._relvec = rng_v.standard_normal((3, 2))
-
-    def obs_at(self, node):
-        v = np.zeros(self.vocab)
-        v[self._obj[node % self.n_nodes]] = 1.0
-        return v
-
-    def step(self, node, relation):
-        """Follow relation (0 = parent, 1 = child_left, 2 = child_right) out of node."""
-        i = int(node % self.n_nodes)
-        rel = int(relation)
-        if rel == 0:
-            return (i - 1) // 2 if i > 0 else 0
-        elif rel == 1:
-            left = 2 * i + 1
-            return left if left < self.n_nodes else i
-        elif rel == 2:
-            right = 2 * i + 2
-            return right if right < self.n_nodes else i
-        else:
-            raise ValueError(f"Invalid relation {relation}")
-
-    def relation_vec(self, relation):
-        """Frozen external 2D label for a relation id (fed to the grid as Exogenous)."""
-        return self._relvec[relation].copy()
-
-
-def make_hierarchy_episode(n_nodes, vocab, K, seed=0):
-    """Walk K random directed relation-steps on hierarchy; bind obs at each visited node."""
-    g = HierarchyGraph(n_nodes, vocab, seed=seed)
-    rng = np.random.default_rng(seed + 1)
-    node = 0
-    walk = []
-    observed = {node}
-    walked_single_edges = set()         # (start_node, relation_id) actually traversed
-    seen_relations = set()
-    n_relations = 3
-    for _ in range(K):
-        r = int(rng.integers(0, n_relations))
-        nxt = g.step(node, r)
-        walk.append((node, r, g.relation_vec(r)))
-        walked_single_edges.add((node, r))
-        seen_relations.add(r)
-        node = nxt
-        observed.add(node)
-
-    obs_list = sorted(observed)
-    seen_rel_list = sorted(seen_relations)
-    queries = []
-    # enumerate 2-hop compositions from each observed start over seen relations
-    for s in obs_list:
-        for r1 in seen_rel_list:
-            mid = g.step(s, r1)
-            for r2 in seen_rel_list:
-                target = g.step(mid, r2)
-                if target not in observed:
-                    continue                       # need a known obs to score against
-                if (s, r1) in walked_single_edges and g.step(s, r1) == target:
-                    continue                       # would be a trivially-walked single step
-                queries.append((s, [r1, r2], target))
-    # dedup + cap (deterministic order)
-    seen_q = set()
-    uniq = []
-    for q in queries:
-        key = (q[0], tuple(q[1]), q[2])
-        if key in seen_q:
-            continue
-        seen_q.add(key)
-        uniq.append(q)
-    return Episode(g=g, walk=walk, observed_nodes=observed, queries=uniq[:64])
-

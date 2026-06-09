@@ -67,4 +67,5 @@ class GRAILConfig:
     c_max: float = 1.0        # max consolidation reserve
     g_theta: float = 4.0      # plasticity-permission sigmoid sharpness
     # misc
+    pc_sparsity_threshold: float = 0.0
     seed: int = 0

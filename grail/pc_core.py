@@ -87,7 +87,20 @@ class PCAreas:
             step = (drift/c.tau_x)*c.dt
             noise = rng.normal(self.x[l].shape, scale=np.sqrt(2.0*T*c.dt/c.tau_x))
             new_x[l] = self.x[l] + step + noise
-            if counters is not None: counters.record_synaptic_ops(self.B[l-1].size if l>=1 else 0)
+            if l >= 1 and self.cfg.pc_sparsity_threshold > 0.0:
+                new_x[l] = np.where(np.abs(new_x[l]) < self.cfg.pc_sparsity_threshold, 0.0, new_x[l])
+        if counters is not None:
+            dense_ops = 0
+            dyn_ops = 0
+            for l in range(self.L - 1):
+                d_l = self.cfg.dims[l]
+                d_l1 = self.cfg.dims[l+1]
+                dense_ops += 2 * d_l * d_l1
+                active_x = int(np.sum(np.abs(self.x[l+1]) > 1e-6))
+                dyn_ops += active_x * d_l
+                active_eps = int(np.sum(np.abs(self.eps[l]) > 1e-6))
+                dyn_ops += active_eps * d_l1
+            counters.record_synaptic_ops(dense_ops, dyn_ops)
         self.x = new_x
         if counters is not None:
-            for xl in self.x: counters.record_activity(xl)
+            for xl in self.x[1:]: counters.record_activity(xl)
