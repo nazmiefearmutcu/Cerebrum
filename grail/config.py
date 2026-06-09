@@ -29,6 +29,23 @@ class GRAILConfig:
                                      # WITHOUT ever reading/copying W.T (no weight transport).
     lam_kp: float = 1e-2             # matched symmetric weight decay applied to BOTH W and B
                                      # ONLY when align_feedback=True (the KP coupling term).
+    # --- top-down precision balancing (OPT-IN; default OFF = behavior unchanged) ---
+    balance_grid_precision: bool = False
+                                     # if True, the EXTERNAL top-down prediction at the TOP area
+                                     # (the grid HEAD's structural prediction in GRAILNet/GRAILCore)
+                                     # is gain-normalized to the bottom-up activity scale of that
+                                     # area BEFORE it enters the top-area error. In predictive coding
+                                     # the relative pull of a top-down prediction is set by PRECISION;
+                                     # the never-decayed Hebbian grid content store makes ||top_pred||
+                                     # ~500x the small obs-driven latent (|x|~0.1), so its unit-precision
+                                     # pull CRUSHES the obs factor code (the latent tracks grid phase,
+                                     # not obs factors). This LOCAL, per-area diagonal gain rescales
+                                     # the prediction so the grid top-down and the bottom-up
+                                     # reconstruction signal are weighted COMPARABLY. NO global
+                                     # objective, no weight transport — a pure prediction-gain op.
+    grid_precision_ref: float = 1.0  # target ratio ||scaled top_pred|| / ||bottom-up activity||;
+                                     # 1.0 = match the bottom-up scale exactly (only used when
+                                     # balance_grid_precision=True).
     Pi0: float = 1.0                 # precision prior
     sigma0: float = 1.0              # precision floor variance
     kappa_pi: float = 1.0            # precision learning gain

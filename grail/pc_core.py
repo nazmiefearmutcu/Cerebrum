@@ -15,11 +15,48 @@ class PCAreas:
         self.W = [0.1*rng.standard_normal((d[l], d[l+1])) for l in range(self.L-1)]
         self.B = [0.1*rng.standard_normal((d[l+1], d[l])) for l in range(self.L-1)]
 
+    def _bottomup_scale_top(self):
+        """L2 scale of the BOTTOM-UP reconstruction signal driving the TOP area, used as the
+        reference against which an external top-down prediction is precision-balanced.
+
+        The top area is pulled UP from below by the feedback term B[L-2] @ (f' * Pi*eps) (exactly
+        the term added to its drift in settle_step) — this is the obs-driven 'bottom-up signal scale'
+        the mission asks the grid top-down to be weighted COMPARABLY to. If there is no obs error yet
+        (early settling), fall back to the current top-area activity ||x[top]||. This is LOCAL: it
+        reads only this area's own state plus its single feedback synapse, no global objective."""
+        if self.L < 2:
+            return float(np.linalg.norm(self.x[-1]))
+        fprime = g_deriv(self.W[self.L-2] @ self.x[self.L-1])
+        fb = self.B[self.L-2] @ (fprime * (self.Pi[self.L-2] * self.eps[self.L-2]))
+        s = float(np.linalg.norm(fb))
+        if s == 0.0:
+            s = float(np.linalg.norm(self.x[-1]))
+        return s
+
+    def _balanced_top_pred(self, top_pred):
+        """Gain-normalize an EXTERNAL top-down prediction to the top area's bottom-up signal scale.
+        OPT-IN via cfg.balance_grid_precision; default OFF returns top_pred unchanged (bit-identical).
+
+        When the prediction's norm exceeds the bottom-up reference, scale it DOWN so the two
+        top-down/bottom-up influences pull the top area COMPARABLY (ratio = grid_precision_ref).
+        A prediction already at or below the reference is left untouched (scale clamped to <=1),
+        so this never amplifies — it is a pure precision/gain down-weight on a dominating prediction."""
+        if top_pred is None or not getattr(self.cfg, "balance_grid_precision", False):
+            return top_pred
+        pnorm = float(np.linalg.norm(top_pred))
+        if pnorm == 0.0:
+            return top_pred
+        ref = getattr(self.cfg, "grid_precision_ref", 1.0) * self._bottomup_scale_top()
+        scale = min(1.0, ref / pnorm)
+        return top_pred * scale
+
     def predict(self, l, top_pred=None):
         """top-down prediction of area l."""
         if l < self.L-1:
             return g_act(self.W[l] @ self.x[l+1])
-        return np.zeros_like(self.x[l]) if top_pred is None else top_pred
+        if top_pred is None:
+            return np.zeros_like(self.x[l])
+        return self._balanced_top_pred(top_pred)
 
     def compute_errors(self, top_pred=None, broadcast=None):
         for l in range(self.L):

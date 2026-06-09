@@ -17,3 +17,9 @@ def test_align_feedback_defaults_off():
     assert c.align_feedback is False     # OPT-IN: default behavior unchanged
     assert c.lam_kp > 0.0                # matched KP decay parameter present
     assert GRAILConfig(align_feedback=True).align_feedback is True
+
+def test_balance_grid_precision_defaults_off():
+    c = GRAILConfig()
+    assert c.balance_grid_precision is False     # OPT-IN: default behavior unchanged
+    assert c.grid_precision_ref > 0.0            # balancing reference ratio present
+    assert GRAILConfig(balance_grid_precision=True).balance_grid_precision is True
