@@ -1,0 +1,21 @@
+{
+  "summary": {
+    "total_tests": 39,
+    "passed": 39,
+    "failed": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "profiling": {
+    "system2": {
+      "mean_latency_us": 2230.4304300000003,
+      "mean_synaptic_ops": 52608.0
+    },
+    "system1": {
+      "mean_latency_us": 1.36291,
+      "mean_synaptic_ops": 0.0
+    },
+    "latency_ratio": 1636.52070202728,
+    "ratio_passes_threshold": true
+  }
+}

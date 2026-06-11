@@ -78,7 +78,7 @@ def test_metaplastic_theta_gates_module_plasticity():
         net._force_theta = force_theta            # test hook: pin theta to a constant
         W_before = [m.W[0].copy() for m in net.modules]
         net.step([o.copy() for o in obs], action=action, reward=1.0)
-        return sum(float(np.sum(np.abs(m.W[0] - wb))) for m, wb in zip(net.modules, W_before))
+        return sum(float(np.sum(np.abs(np.asarray(m.W[0]) - np.asarray(wb)))) for m, wb in zip(net.modules, W_before))
 
     open_change = total_dW(1.0)     # fuse OPEN: full plasticity
     closed_change = total_dW(0.0)   # fuse CLOSED: theta=0 should zero the module weight update
@@ -93,7 +93,7 @@ def test_fuse_object_is_used_and_theta_in_unit_interval():
     rng = np.random.default_rng(11)
     net.step(_obs(3, 4, rng), action=Exogenous(np.array([0.0, 0.1])), reward=1.0)
     assert len(net.fuse) == net.M_
-    th = net.last_theta[0][0]
+    th = np.asarray(net.last_theta[0][0])
     assert np.all(th >= 0.0) and np.all(th <= 1.0)
 
 
@@ -117,7 +117,7 @@ def test_basic_learning_signal_error_drops():
     def bottom_err():
         net.workspace.slots[:] = 0.0                      # neutral broadcast for the readout
         net.settle_only(obs, action=still, T=0.0)         # noise-free: reflects the weights
-        return float(np.mean([float(np.sum(m.eps[0] ** 2)) for m in net.modules]))
+        return float(np.mean([float(np.sum(np.asarray(m.eps[0]) ** 2)) for m in net.modules]))
 
     e0 = bottom_err()
     for _ in range(60):
@@ -133,7 +133,7 @@ def test_grid_path_integration_advances_top_down():
     rng = np.random.default_rng(0)
     obs = _obs(3, 4, rng)
     net.step(obs, action=Exogenous(np.array([0.0, 0.0])), reward=1.0)
-    td0 = net.last_top_pred.copy()
+    td0 = net.last_top_pred.detach().cpu().numpy()
     net.step(obs, action=Exogenous(np.array([1.0, 0.5])), reward=1.0)
-    td1 = net.last_top_pred.copy()
+    td1 = net.last_top_pred.detach().cpu().numpy()
     assert not np.allclose(td0, td1)

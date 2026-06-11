@@ -1,10 +1,16 @@
 import numpy as np
+import torch
 from .types import Exogenous
+
+def to_numpy(x):
+    if hasattr(x, 'detach'):
+        return x.detach().cpu().numpy()
+    return np.asarray(x)
 
 def assert_one_hot(z, axis=0, tol=1e-9):
     """Each slice along `axis` must be one-hot OR all-zero (an unfilled slot). Soft weights raise (BAN-1)."""
-    z = np.asarray(z, dtype=float)
-    moved = np.moveaxis(z, axis, 0)
+    z_np = to_numpy(z).astype(float)
+    moved = np.moveaxis(z_np, axis, 0)
     flat = moved.reshape(moved.shape[0], -1)
     for j in range(flat.shape[1]):
         col = flat[:, j]
@@ -15,7 +21,7 @@ def assert_one_hot(z, axis=0, tol=1e-9):
 
 def assert_scalar_M(M):
     """Neuromodulator must be a scalar; a vector global signal is DFA (BAN-2)."""
-    arr = np.asarray(M)
+    arr = to_numpy(M)
     assert arr.ndim == 0 or arr.size == 1, f"neuromodulator must be scalar, got shape {arr.shape} (DFA/BAN-2)"
 
 def assert_exogenous_action(action):

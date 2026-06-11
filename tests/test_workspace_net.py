@@ -17,4 +17,4 @@ def test_broadcast_influences_modules():
     net = CerebrumWorkspaceNet(n_modules=2, k_slots=1, slice_dim=4, cfg=cfg)
     obs = [np.array([1.,0,0,0]), np.array([0,0,0,1.])]
     net.step(obs, reward=1.0)
-    assert np.any(net.workspace.slots != 0)              # a winner wrote content that will broadcast next step
+    assert np.any(net.workspace.slots.cpu().numpy() != 0)              # a winner wrote content that will broadcast next step

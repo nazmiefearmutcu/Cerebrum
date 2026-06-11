@@ -14,7 +14,7 @@ if os.path.exists(submission_path):
     submodule_names = [
         "config", "counters", "types", "invariants", "grid_head", "neuromod",
         "nonlinear", "pc_core", "plasticity", "rng", "core_net", "gate",
-        "metaplasticity", "workspace", "unified", "workspace_net", "energy"
+        "metaplasticity", "workspace", "unified", "workspace_net", "energy", "grounding"
     ]
     
     for name in submodule_names:

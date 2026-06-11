@@ -61,6 +61,7 @@ original probe so the comparison is honest.
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root on path
 import numpy as np
+import torch
 from dataclasses import dataclass, field, replace
 from typing import Optional
 
@@ -146,7 +147,8 @@ def _grid_top_pred(pcfg, content_dim):
     rec = pcfg._grid.complete()
     if pcfg._U is None:
         rng = np.random.default_rng(12345)
-        pcfg._U = 0.1 * rng.standard_normal((content_dim, rec.size))   # frozen decode
+        U_np = 0.1 * rng.standard_normal((content_dim, rec.numel()))   # frozen decode
+        pcfg._U = torch.tensor(U_np, device=rec.device, dtype=rec.dtype)
     return pcfg._U @ rec
 
 
@@ -160,7 +162,7 @@ def _broadcast(pcfg, net):
     d0 = net.cfg.dims[0]
     p0 = np.zeros(d0)
     w = pcfg._wksp.broadcast()
-    n = min(d0, w.size)
+    n = min(d0, w.numel())
     p0[:n] = w[:n]
     b[0] = p0
     return b
@@ -245,9 +247,9 @@ def settle_top_latent_pipeline(net, obs, steps, pcfg, f1=0, f2=0, A=1, B=1, seed
     top_pred = None
     if pcfg.use_grid and pcfg._grid is not None and pcfg._grid.store is not None:
         # reproduce this combo's grid phase deterministically (no binding at readout time)
-        saved = pcfg._grid.pos.copy()
+        saved = pcfg._grid.pos.clone()
         pcfg._grid.reset()
-        pcfg._grid.pos = _combo_action(f1, f2, A, B).value * 0.0 + saved * 0.0  # start at origin
+        pcfg._grid.pos = torch.zeros_like(saved)  # start at origin
         pcfg._grid.transition(_combo_action(f1, f2, A, B))
         top_pred = _grid_top_pred(pcfg, net.cfg.dims[-1])
         pcfg._grid.pos = saved
@@ -257,7 +259,7 @@ def settle_top_latent_pipeline(net, obs, steps, pcfg, f1=0, f2=0, A=1, B=1, seed
     net.x = [np.zeros_like(xl) for xl in net.x]
     for _ in range(steps):
         net.settle_step(erng, T=0.0, clamp_bottom=obs, top_pred=top_pred, broadcast=bcast)
-    return net.x[-1].copy()
+    return np.asarray(net.x[-1])
 
 
 # ------------------------------------------------------------------------------------------
@@ -299,7 +301,7 @@ def settle_top_latent_full(net, task, f1, f2, T=0.0):
         _, reads = net.settle_only([obs], action=_combo_action(f1, f2, task.A, task.B), T=T)
     finally:
         object.__setattr__(net.cfg, 'n_settle', orig_n_settle)
-    return reads[0].copy()
+    return np.asarray(reads[0])
 
 
 # ------------------------------------------------------------------------------------------

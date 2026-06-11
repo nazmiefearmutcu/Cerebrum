@@ -105,8 +105,8 @@ def test_fuse_condition_gates_plasticity_smaller_dw_than_bare():
     bare = train_pipeline_module(task, cfg, PipelineConfig(condition="bare"), passes=10)
     fused = train_pipeline_module(task, cfg, PipelineConfig(condition="fuse"), passes=10)
     init = PCAreas(cfg)
-    mv_bare = sum(float(np.sum(np.abs(bare.W[l] - init.W[l]))) for l in range(bare.L - 1))
-    mv_fuse = sum(float(np.sum(np.abs(fused.W[l] - init.W[l]))) for l in range(fused.L - 1))
+    mv_bare = sum(float(np.sum(np.abs(np.asarray(bare.W[l]) - np.asarray(init.W[l])))) for l in range(bare.L - 1))
+    mv_fuse = sum(float(np.sum(np.abs(np.asarray(fused.W[l]) - np.asarray(init.W[l])))) for l in range(fused.L - 1))
     assert mv_fuse <= mv_bare + 1e-9, f"fuse did not gate plasticity: {mv_fuse} > {mv_bare}"
     assert mv_fuse >= 0.0
 

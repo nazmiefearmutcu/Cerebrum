@@ -39,7 +39,7 @@ def test_settle_noise_scale_tracks_T_floor():
     x_noisy = settled_top(0.05)
     assert np.allclose(x_det, x_det2)            # T=0 is deterministic (reproducible)
     assert not np.allclose(x_det, x_noisy)       # T>0 actually injects noise into the settle
-    assert np.all(np.isfinite(x_noisy))
+    assert np.all(np.isfinite(np.asarray(x_noisy)))
 
 
 def test_axis1_finite_and_structurally_invariant():

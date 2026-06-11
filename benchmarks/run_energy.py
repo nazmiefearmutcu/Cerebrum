@@ -23,7 +23,7 @@ def _measure(net, protos, cfg):
         for _ in range(40):
             net.settle_step(rng0, T=0.0, clamp_bottom=p)
         net.compute_errors()
-        errs.append(float(np.sum(net.eps[0] ** 2)))
+        errs.append(float(np.sum(np.asarray(net.eps[0]) ** 2)))
         rhos.append(spike_sparsity(net.eps[:net.L - 1], tol=SPIKE_TOL))
         ops.append(dynamic_synaptic_ops(net, tol=SPIKE_TOL))
         mags.append(dynamic_energy_magnitude(net))

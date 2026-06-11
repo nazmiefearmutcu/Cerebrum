@@ -24,19 +24,19 @@ def test_local_learning_raises_win_prob_of_rewarded_module():
     g = BasalGangliaGate(n_modules=3, k_slots=1, cfg=CerebrumConfig(eta_w=0.5), seed=3)
     rng = SeededRNG(0)
     # repeatedly: module 1 wins and is rewarded (M>0) -> its Go weight should grow
-    G1_before = g.G[1,0]
+    G1_before = float(g.G[1,0].item())
     for _ in range(30):
         g.select(np.array([0.5,1.0,0.5]), rng, T_gate=0.5)
         g.learn(M=1.0)
-    assert g.G[1,0] > G1_before                          # rewarded winner's Go weight increases (scalar M)
+    assert float(g.G[1,0].item()) > G1_before                          # rewarded winner's Go weight increases (scalar M)
 
 def test_lam_g_decays_gate_weights_toward_init():
     g = BasalGangliaGate(n_modules=3, k_slots=1, cfg=CerebrumConfig(eta_w=0.0, lam_g=0.5), seed=0)
     g.N[:] = 1.0                                          # push NoGo away from its 0 init
     g.select(np.array([1.0, 1.0, 1.0]), SeededRNG(0), T_gate=0.5)
     g.learn(M=0.0)                                        # eta*M=0 -> only the lam_g decay acts
-    assert np.all(g.N < 1.0)                              # NoGo decays toward its 0 init
-    assert np.all(np.abs(g.G - 0.5) <= 0.1 + 1e-9)       # Go pulled within the decayed range of its 0.5 init
+    assert np.all(g.N.cpu().numpy() < 1.0)                              # NoGo decays toward its 0 init
+    assert np.all(np.abs(g.G.cpu().numpy() - 0.5) <= 0.1 + 1e-9)       # Go pulled within the decayed range of its 0.5 init
 
 def test_reward_aware_homeostasis_spares_rewarded_wins():
     g = BasalGangliaGate(n_modules=2, k_slots=1, cfg=CerebrumConfig(), seed=0)
@@ -45,8 +45,8 @@ def test_reward_aware_homeostasis_spares_rewarded_wins():
     g2 = BasalGangliaGate(n_modules=2, k_slots=1, cfg=CerebrumConfig(), seed=0)
     g2.select(np.array([2.0, 0.1]), SeededRNG(0), T_gate=0.2)
     g2.homeostasis(M=None)                                # plain anti-hog penalizes the winner
-    winner = int(np.argmax(g._z[:, 0]))
-    assert g.theta[winner] > g2.theta[winner]             # reward-aware spares the correct winner
+    winner = int(np.argmax(g._z.cpu().numpy()[:, 0]))
+    assert float(g.theta[winner].item()) > float(g2.theta[winner].item())             # reward-aware spares the correct winner
 
 def test_homeostasis_raises_excitability_of_starved_module():
     g = BasalGangliaGate(n_modules=3, k_slots=1, cfg=CerebrumConfig(), seed=4)
@@ -54,5 +54,5 @@ def test_homeostasis_raises_excitability_of_starved_module():
     for _ in range(40):
         g.select(np.array([5.0, 0.0, 0.0]), rng, T_gate=0.2)  # module 0 hogs the slot
         g.homeostasis()
-    assert g.theta[1] > 0 and g.theta[2] > 0              # starved modules' excitability rises (anti-dead-expert)
-    assert g.theta[0] < g.theta[1]                        # the hog's excitability is suppressed
+    assert float(g.theta[1].item()) > 0 and float(g.theta[2].item()) > 0              # starved modules' excitability rises (anti-dead-expert)
+    assert float(g.theta[0].item()) < float(g.theta[1].item())                        # the hog's excitability is suppressed

@@ -60,7 +60,7 @@ def _err_on(net, patterns, cfg, rng):
     for p in patterns:
         for _ in range(cfg.n_settle):
             net.settle_step(erng, T=0.0, clamp_bottom=p)
-        net.compute_errors(); tot += float(np.sum(net.eps[0]**2))
+        net.compute_errors(); tot += float(np.sum(np.asarray(net.eps[0])**2))
     return tot/len(patterns)
 
 

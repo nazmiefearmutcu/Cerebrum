@@ -90,3 +90,40 @@ Enforce and measure the following neuromorphic efficiency constraints:
 - [ ] Energy logs verify that learn-time global communication remains $O(1)$ scalar-only.
 
 
+## Follow-up — 2026-06-11T18:22:57Z
+
+Addressing the three core deficiencies in the Cerebrum project: PyTorch GPU acceleration backend, Sensory-Motor Grounding with PyBullet/ROS 2 wrapper, and System 1 (Cerebellum) reflex bypass.
+
+Working directory: /Users/nazmi/Cerebrum
+Integrity mode: development
+
+## Requirements
+
+### R1. PyTorch Acceleration Backend
+- Port the core CerebrumNet architecture (and modules `PCAreas`, `GridHead`, `BasalGangliaGate`, `Workspace`, `Neuromodulator`, `MetaplasticFuse`) from NumPy to PyTorch.
+- Preserve all mathematical invariants: backprop-free updates, local weight updates, weight transport bans, and scalar-M modulation.
+- Support device-agnostic execution (`cpu`, `cuda`, `mps`).
+
+### R2. Sensory-Motor Grounding & PyBullet/ROS 2 Integration
+- Implement sensory processors (e.g., converting continuous camera/depth/lidar readings to vector states) and motor processors (e.g., converting workspace vectors to control targets).
+- Create a simulator interface using **PyBullet** to model a physical robot (e.g., a simple cartpole, mobile robot, or gripper) interacting in a continuous 3D physical environment.
+- Create a ROS 2 node wrapper (using `rclpy` or a robust mock interface if ROS 2 is not installed locally) exposing topics for sensory input and motor command output.
+
+### R3. System 1 (Cerebellum) Reflex Bypass
+- Implement a fast-path reflex module (System 1) that bypasses the slow multi-step workspace settling of CerebrumNet (System 2) when high-urgency states (e.g., imminent collision, loss of balance, or high-energy prediction errors) are detected.
+- System 1 should directly map critical sensory states to immediate motor commands to stabilize the robot or avoid obstacles.
+
+## Acceptance Criteria
+
+### Unit and Integration Tests
+- [ ] PyTorch port achieves 100% equivalence in learning and inference steps compared to the original NumPy version (under matching seeds, within float tolerance).
+- [ ] All existing test suites pass under the PyTorch backend, and new tests verify device-agnostic execution on `cpu` or `cuda`/`mps` when available.
+
+### Robot Simulation & Grounding
+- [ ] PyBullet simulation runs continuously and connects to CerebrumNet's sensory-motor pipeline.
+- [ ] The ROS 2/mock-ROS 2 node successfully publishes/subscribes to `/sensory_input` and `/motor_commands`.
+- [ ] The grounded CerebrumNet agent successfully accomplishes a basic physical navigation/control task (e.g., reaching a target position) in the PyBullet environment.
+
+### System 1 Reflex Performance
+- [ ] Verification tests show that System 1 latency is at least 5x lower (fewer settling iterations/ops) than System 2 workspace routing when a hazard is detected.
+- [ ] In obstacle-avoidance simulations, the robot equipped with System 1 reflexes successfully avoids collisions that a System 2-only model fails to avoid in time due to settling delay.

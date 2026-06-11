@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from cerebrum.pc_core import PCAreas
 from cerebrum.plasticity import Eligibility, weight_update, precision_update, feedback_update
 from cerebrum.neuromod import Neuromodulator
@@ -17,7 +18,7 @@ def run_continual_ewc(seed=0, dim=10, per_task=6, passes=100, lam=5.0):
     A, B, C = _prototypes(np.random.default_rng(seed+5), 3, per_task, dim)
     net = PCAreas(cfg); nm = Neuromodulator(cfg); rng = SeededRNG(seed)
     elig = [Eligibility((cfg.dims[l+1],), cfg) for l in range(net.L-1)]
-    Wstar = [None]*(net.L-1); Omega = [np.zeros_like(net.W[l]) for l in range(net.L-1)]
+    Wstar = [None]*(net.L-1); Omega = [torch.zeros_like(net.W[l]) for l in range(net.L-1)]
 
     def train(patterns, anchored):
         for _ in range(passes):
@@ -28,7 +29,7 @@ def run_continual_ewc(seed=0, dim=10, per_task=6, passes=100, lam=5.0):
                         elig[l].step(a_pre=net.x[l+1])
                 net.compute_errors(); M = nm.update(reward=1.0)
                 for l in range(net.L-1):
-                    dW = weight_update(M=M, theta=np.ones_like(net.W[l]), Pi_post=net.Pi[l],
+                    dW = weight_update(M=M, theta=torch.ones_like(net.W[l]), Pi_post=net.Pi[l],
                                        eps_post=net.eps[l], elig=elig[l].value, eta=cfg.eta_w/cfg.tau_w)
                     if anchored and Wstar[l] is not None:
                         dW = dW - (cfg.eta_w/cfg.tau_w)*lam*Omega[l]*(net.W[l]-Wstar[l])  # EWC quadratic penalty
@@ -46,7 +47,7 @@ def run_continual_ewc(seed=0, dim=10, per_task=6, passes=100, lam=5.0):
                 elig[l].step(a_pre=net.x[l+1])
         net.compute_errors()
         for l in range(net.L-1):
-            g = weight_update(M=1.0, theta=np.ones_like(net.W[l]), Pi_post=net.Pi[l],
+            g = weight_update(M=1.0, theta=torch.ones_like(net.W[l]), Pi_post=net.Pi[l],
                               eps_post=net.eps[l], elig=elig[l].value, eta=1.0)
             Omega[l] += g**2
     for l in range(net.L-1):

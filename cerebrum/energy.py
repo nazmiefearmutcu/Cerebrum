@@ -6,13 +6,35 @@ synapses). Learn-time global communication is O(1) — a single scalar neuromodu
 matched backprop network broadcasts an error VECTOR per layer (O(depth) elements). Static/leakage
 power and settle-time energy do NOT decay; only the event-driven dynamic term does."""
 import numpy as np
+import torch
+from .types import TensorSliceWrapper
+
+
+def _to_float(val):
+    if hasattr(val, 'item'):
+        return float(val.item())
+    return float(val)
+
+
+def _numel(x):
+    if hasattr(x, 'numel'):
+        return x.numel()
+    if hasattr(x, 'shape'):
+        return int(np.prod(x.shape))
+    return len(x)
 
 
 def spike_sparsity(eps_list, tol=1e-6):
     """Fraction of error-neuron units that are ACTIVE (|eps| > tol). Event-driven: well-predicted
     units are silent, so this falls toward a floor as the network becomes competent."""
-    active = sum(int(np.sum(np.abs(e) > tol)) for e in eps_list)
-    total = sum(int(e.size) for e in eps_list)
+    active = 0
+    total = 0
+    for e in eps_list:
+        if isinstance(e, (torch.Tensor, TensorSliceWrapper)):
+            active += int(torch.sum(torch.abs(e) > tol).item())
+        else:
+            active += int(np.sum(np.abs(e) > tol))
+        total += _numel(e)
     return active / total if total else 0.0
 
 
@@ -22,7 +44,11 @@ def dynamic_synaptic_ops(net, tol=1e-6):
     dynamic op count decays with competence."""
     ops = 0
     for l in range(net.L - 1):
-        active = int(np.sum(np.abs(net.eps[l]) > tol))
+        eps = net.eps[l]
+        if isinstance(eps, (torch.Tensor, TensorSliceWrapper)):
+            active = int(torch.sum(torch.abs(eps) > tol).item())
+        else:
+            active = int(np.sum(np.abs(eps) > tol))
         ops += active * net.W[l].shape[1]      # each active error unit drives its fan-in synapses
     return ops
 
@@ -34,7 +60,12 @@ def dynamic_energy_magnitude(net):
     robust headline energy metric; the thresholded spike count is a conservative companion."""
     e = 0.0
     for l in range(net.L - 1):
-        e += float(np.sum(np.abs(net.eps[l]))) * net.W[l].shape[1]
+        eps = net.eps[l]
+        if isinstance(eps, (torch.Tensor, TensorSliceWrapper)):
+            sum_eps = torch.sum(torch.abs(eps)).item()
+        else:
+            sum_eps = np.sum(np.abs(eps))
+        e += float(sum_eps) * net.W[l].shape[1]
     return e
 
 

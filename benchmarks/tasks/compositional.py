@@ -212,7 +212,7 @@ def _complete_f2(net, task, f1, settle_steps):
     for _ in range(settle_steps):
         net.settle_step(erng, T=0.0, clamp_bottom=None)
         net.x[0][task.f1_slice] = f1p  # re-pin observed dims; masked dims evolve freely
-    return net.x[0][task.f2_slice].copy()
+    return np.asarray(net.x[0][task.f2_slice])
 
 
 def run_pc_completion(task, cfg, passes=60, settle_steps=None):
@@ -239,7 +239,7 @@ def run_pc_completion(task, cfg, passes=60, settle_steps=None):
         obs = task.embed(f1, f2)
         for _ in range(settle_steps):
             net.settle_step(erng, T=0.0, clamp_bottom=obs)
-        lat_vals.append(np.mean([np.abs(net.x[l]).mean() for l in range(1, net.L)]))
+        lat_vals.append(np.mean([np.abs(np.asarray(net.x[l])).mean() for l in range(1, net.L)]))
         comp_norms.append(float(np.linalg.norm(_complete_f2(net, task, f1, settle_steps))))
 
     def _score(combos):

@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 class Counters:
     def __init__(self):
@@ -17,8 +18,13 @@ class Counters:
         self.dynamic_synaptic_ops += int(dynamic)
         self.synaptic_ops = self.dynamic_synaptic_ops
     def record_activity(self, x, tol=1e-6):
-        x = np.asarray(x); self._active += int(np.sum(np.abs(x) > tol)); self._total += x.size
+        if hasattr(x, 'detach'):
+            self._active += int(torch.sum(torch.abs(x) > tol).item())
+            self._total += x.numel()
+        else:
+            x = np.asarray(x)
+            self._active += int(np.sum(np.abs(x) > tol))
+            self._total += x.size
     def sparsity(self):  # active fraction rho
         return self._active / self._total if self._total else 0.0
     def reset_activity(self): self._active = 0; self._total = 0
-

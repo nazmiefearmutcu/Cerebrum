@@ -169,7 +169,7 @@ def settle_top_latent_multi(net, obs, steps, seed=_EVAL_SEED):
     net.x = [np.zeros_like(xl) for xl in net.x]
     for _ in range(steps):
         net.settle_step(erng, T=0.0, clamp_bottom=obs)
-    return net.x[-1].copy()
+    return np.asarray(net.x[-1])
 
 
 # ------------------------------------------------------------------------------------------

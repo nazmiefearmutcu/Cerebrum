@@ -35,7 +35,7 @@ def _decode_position(net, probe_obs, n_items):
     for x in range(n_items):
         _goto_coord(net, x)
         rec = net.predict_obs_here(probe_obs.size)
-        score = float(rec[probe_sym]) if rec.size > probe_sym else -np.inf
+        score = float(rec[probe_sym]) if rec.numel() > probe_sym else -np.inf
         if score > best_score:
             best_score, best_x = score, x
     return best_x

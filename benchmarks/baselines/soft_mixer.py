@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from cerebrum.config import CerebrumConfig
 from cerebrum.workspace_net import CerebrumWorkspaceNet
 from cerebrum.plasticity import weight_update, precision_update, feedback_update
@@ -27,14 +28,14 @@ def _soft_step(net, cfg, obs, reward):
     instead of workspace.write(z) (strict one-hot). This isolates write-discreteness as the sole factor."""
     n_modules = net.M_
     bcast = net.workspace.broadcast()
-    top = bcast[:net.content_dim] if bcast.size >= net.content_dim else np.zeros(net.content_dim)
+    top = bcast[:net.content_dim] if bcast.shape[0] >= net.content_dim else np.zeros(net.content_dim)
     T = net.nm.temperature(0.0)
     errsq = np.zeros(n_modules); reads = np.zeros((n_modules, net.content_dim))
     for mi, mod in enumerate(net.modules):
         for _ in range(cfg.n_settle):
             mod.settle_step(net.rng, T=T, clamp_bottom=obs[mi], top_pred=top)
         mod.compute_errors(top_pred=top)
-        errsq[mi] = sum(float(np.sum(e**2)) for e in mod.eps); reads[mi] = mod.x[-1].copy()
+        errsq[mi] = sum(float(torch.sum(e**2)) for e in mod.eps); reads[mi] = mod.x[-1].copy()
     pi = np.array([float(np.mean(m.Pi[-1])) for m in net.modules])
     bids = net.gate.bid(errsq, pi)
     T_gate = cfg.gate_temp if cfg.gate_temp > 0.0 else net.nm.t_gate(max(reward, 1e-3))
