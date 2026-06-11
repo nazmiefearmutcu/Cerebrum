@@ -43,6 +43,91 @@ add a new headline result or change any Stage-1/2/3 number.
 | **3. Structured generative prior** | TEM-style grid×sensory factorization; frozen Lie-group rotation transitions driven by an **exogenous** action; the source of sample efficiency (graph-completion, not interpolation). |
 | **4. Stochastic inference** | Langevin SDE settling `τ_x dx = −∂F/∂x dt + √(2τ_x T) dW`; samples an (approximate) posterior, never collapses to MAP (`T ≥ T_floor > 0`). |
 | **5. Neuromorphic substrate** | Settling = analog device relaxation; intrinsic device noise = the Langevin floor; only the scalar `M` crosses the whole chip. (Load-bearing, with honestly-downgraded claims — see *Honest status* below.) |
+---
+
+## Use Cases & Application Domains (Kullanım Alanları)
+
+CEREBRUM is designed for distinct research and engineering domains where traditional backpropagation-based deep learning is inefficient or physically impossible to implement:
+
+### 1. Autonomous Robotics & Path Integration (Cerebrum-Robo)
+- **Problem**: Mobile robots must map unfamiliar environments (like household room layouts), plan paths, and coordinate actions (navigation, fetching, sorting) under tight computational power budgets.
+- **Solution**: The **Cerebrum-Robo** agent operates as a closed-loop active inference controller. It integrates structured Lie-group grid cell priors with local predictive coding modules. Motor efference copies directly drive path-integration in the grid prior without backpropagation.
+- **Outcome**: Ultra-low computational overhead and rapid adaptation to dynamic environment topologies.
+
+### 2. Sample-Efficient Zero-Shot/Few-Shot Spatial Mapping
+- **Problem**: Storing topological relations in conventional architectures requires thousands of iterations to achieve interpolation.
+- **Solution**: CEREBRUM's structured generative prior factorizes sensory and grid codes (similar to TEM).
+- **Outcome**: Zero-shot or few-shot spatial graph completion, allowing agents to infer unobserved shortcuts and path connections immediately after a handful of steps.
+
+### 3. Energy-Critical Edge & Neuromorphic Hardware
+- **Problem**: Edge devices and neuromorphic chips (like Loihi or analog memory arrays) cannot afford the massive memory traffic and high-dimensional routing required for global error vector backpropagation (e.g., autograd, DFA).
+- **Solution**: CEREBRUM features fully-local learning rules (four-factor Hebbian) and uses only a single scalar neuromodulator ($M$) for global communication. Its SDE Langevin settling maps directly to physical thermal noise, and error thresholding results in event-driven activation sparsity ($\ge 80\%$).
+- **Outcome**: Synaptic operations decay dynamically as the model gains competence, drastically saving physical dynamic switching energy on chip.
+
+### 4. Continual & Sequential Learning (Address Forgetting)
+- **Problem**: Edge devices processing stream data face the stability-plasticity dilemma; learning task B destroys knowledge of task A (catastrophic forgetting).
+- **Solution**: The surprise-gated metaplastic fuse (`cerebrum/metaplasticity.py`) allocates a consolidation reserve ($c$) per synapse and regulates plasticity locally via surprise ($S$) without storing task boundaries or raw data buffers.
+- **Outcome**: High retention rates across sequential tasks (A $\rightarrow$ B $\rightarrow$ C $\rightarrow$ D $\rightarrow$ E) with no external task-switching signals.
+
+---
+
+## Working Principles & Multi-Timescale Architecture (Çalışma Biçimi ve Mimari)
+
+CEREBRUM coordinates inference, routing, and learning by minimizing a single free-energy functional $F$ across three distinct physical timescales.
+
+```mermaid
+graph TD
+    subgraph Timescale 1: Fast Inference (Langevin Settling)
+        Obs[Sensory Input] --> PCA[PC Cortical Areas]
+        Grid[Grid prior path integration] -->|Top-Down prior| PCA
+        PCA -->|Langevin SDE Settle| Act[Neural Activity x_l]
+        Act --> Err[Error computation eps_l = x_l - y_l]
+    end
+
+    subgraph Timescale 2: Emergent Routing (Workspace Gate)
+        Err -->|Module Bid b_m| BG[Basal Ganglia Gate]
+        BG -->|Stochastic strict one-hot select| Winner[Winner Module]
+        Winner -->|Workspace Write| WS[Thalamo-Cortical Workspace]
+        WS -->|Broadcast back next step| PCA
+    end
+
+    subgraph Timescale 3: Local Plasticity & Learning
+        Err -->|Eligibility traces e| Plast[Plasticity update]
+        WS -->|Eligibility traces e| Plast
+        Surp[Surprise S_l] -->|Metaplastic Fuse theta_l| Plast
+        Reward[Scalar Reward r] -->|Neuromodulator M = r - r_bar| Plast
+        Plast -->|Hebbian W, B, Pi updates| Weights[Synaptic weights]
+    end
+```
+
+### 1. Neural Activity Settling (Fastest Timescale)
+At the fastest level (inference), neural activity variables $x_l$ in each cortical area $l$ evolve according to Langevin Stochastic Differential Equations (SDEs) to relax into the approximate posterior of the free energy $F$:
+$$\tau_x \frac{dx_l}{dt} = -\frac{\partial F}{\partial x_l} dt + \sqrt{2\tau_x T} dW$$
+- **Error Neurons**: Each area physically instantiates separate error neurons $\epsilon_l = x_l - \hat{y}_l$ (where $\hat{y}_l$ is the top-down prediction). The relaxation minimizes precision-weighted errors.
+- **Langevin Noise ($T$)**: The temperature floor ($T \ge T_{\text{floor}} > 0$) prevents the network from collapsing to maximum a posteriori (MAP) estimates, ensuring calibrated uncertainty.
+
+### 2. Emergent Routing & Workspace Selection (Intermediate Timescale)
+Information flow between different cortical modules is mediated by the **Cortical Workspace**:
+- **Bidding**: Each module $m$ computes its local reconstruction error and surprise, bidding a scalar value $b_m = \pi_m \mathbb{E}[\|\epsilon_m\|^2] + \theta_m$.
+- **Gating**: A striatal Go/NoGo competition selects a single winning module per slot using stochastic strict one-hot selection (Gumbel-Max sampling).
+- **Broadcast**: The winning module's state is written to the workspace and broadcast back as a top-down prediction for the next step, closing the loop. Routing emerges from the transient dynamics of these win events without any global attention matrix.
+
+### 3. Local Plasticity & Weight Updates (Slowest Timescale)
+Plasticity occurs entirely locally at each synapse, driven by a surprise-gated, four-factor Hebbian learning rule:
+$$\tau_w \dot{W} = M \cdot \theta \cdot \Pi \cdot \epsilon \cdot e$$
+- **Global Scalar ($M$)**: The neuromodulator $M = r - \bar{r}$ coordinates learning globally. No high-dimensional error vectors cross the network.
+- **Metaplastic Fuse ($\theta$)**: Regulates plasticity per synapse based on local surprise $S$ and a consolidation reserve $c$:
+  $$\theta = \sigma(g(S - c))$$
+  Synapses with high consolidation reserve ($c$) freeze their weights to protect prior knowledge, while high local surprise ($S$) restores plasticity.
+- **Separate Feedback ($B$)**: Avoids weight transport by updating a physically separate feedback matrix $B$ using its own local rule, bypassing the transpose conjugate constraint ($W^T$).
+
+### 4. Closed-Loop Active Inference (Agent Loop)
+For task execution (e.g. household navigation and fetching), the active inference controller works in a closed loop:
+1. **Perceive**: Read environment state (concatenated room and object identifier vectors).
+2. **Settle**: Execute Langevin SDE iterations on the cortical modules under bottom-up sensory inputs and top-down grid cell predictions.
+3. **Select Action**: Evaluate candidate motor actions, project future states, and select the action that minimizes future expected free energy.
+4. **Act & Path Integrate**: Execute the action. Send a motor efference copy (`Exogenous` action vector) to the Grid Head to integrate path coordinates.
+5. **Update Weights**: Retrieve scalar reward $r$, update $M$, and apply Hebbian weight updates gated by $\theta$.
 
 ---
 
