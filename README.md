@@ -183,7 +183,7 @@ CEREBRUM does not solve scaling or stability-plasticity; it represents an explor
 
 ```
 Cerebrum/
-  cerebrum/                # The CEREBRUM core package (pure NumPy, no autograd)
+  cerebrum/                # The CEREBRUM core package (PyTorch-accelerated, backprop-free)
     config.py              # CerebrumConfig hyperparameters and flag variables
     rng.py                 # SeededRNG for reproducible Langevin noise
     types.py               # Exogenous wrapper enforcing grid prior constraints
@@ -200,7 +200,17 @@ Cerebrum/
     network2.py            # CerebrumWorkspaceNet: multi-module workspace broadcast loop
     metaplasticity.py      # MetaplasticFuse: consolidation reserve c and permission gate theta
     unified.py             # CerebrumNet: Unified 5-pillar active inference system
-  tests/                   # Unit, integration, and invariant tests
+    grounding/             # Sensory-motor grounding package
+      __init__.py          # Grounding package exports
+      sensory.py           # SensoryProcessor translating raw inputs to 5D states
+      motor.py             # MotorProcessor converting workspace vectors to wheel velocities
+      physics.py           # PyBullet interface for continuous 3D robot simulation
+      ros_node.py          # CerebrumROSNode wrapper (rclpy/mock) exposing topics
+      reflex.py            # System1Reflex low-latency cerebellum reflex bypass
+  tests/                   # Unit, integration, invariant, and E2E tests
+    run_e2e_tests.py       # E2E test runner and performance profiler
+    test_e2e.py            # E2E and scenario tests (Tiers 1-4)
+    test_adversarial.py    # Adversarial and vulnerability tests (Tier 5)
   benchmarks/              # Tasks, baselines, and benchmark execution scripts
     baselines/             # Baseline comparators (EWC, backprop MLP, soft-mixer)
     tasks/                 # Simulated environments (household task, transitive, continual)
@@ -214,14 +224,26 @@ Cerebrum/
 
 ## 8. Getting Started & Running
 
-All code runs under Python 3.11+ and NumPy 2.x. There are no additional dependencies.
+### Dependencies
+All code runs under Python 3.11+ and requires `numpy` and `torch` (PyTorch). 
+For the robot simulation and ROS 2 middleware features, `pybullet` and `rclpy` are supported (if missing, they automatically fall back to mock implementations for testing).
+
+```bash
+# Install core dependencies
+pip install numpy torch pybullet
+```
+
+### Running Tests and Benchmarks
 
 ```bash
 # Clone and enter the repository
 cd Cerebrum
 
-# Run the complete test suite
+# Run the complete test suite (232 tests)
 python3 -m pytest -q
+
+# Run E2E Test Suite and Latency Profiling (System 1 vs System 2)
+python3 tests/run_e2e_tests.py --device cpu --report tests/e2e_report.json
 
 # Run Task-1 (Few-Shot Graph Completion) benchmark
 python3 benchmarks/run_task1.py
