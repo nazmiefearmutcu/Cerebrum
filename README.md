@@ -24,21 +24,21 @@ CEREBRUM operates in a closed loop by optimizing a single free-energy functional
 
 ```mermaid
 graph TD
-    subgraph Timescale 1: Millisecond Scale (Neural Activity Settling)
+    subgraph "Timescale 1: Millisecond Scale (Neural Activity Settling)"
         Sensory[Sensory Observations] --> PCA[PC Cortical Areas]
         GridPrior[Grid Head Prior] -->|Top-Down Structural Prediction| PCA
         PCA -->|Langevin SDE Relaxation| Act[Neural States x]
         Act --> Err[Error Neurons: eps = x - y_hat]
     end
 
-    subgraph Timescale 2: Decision Scale (Emergent routing)
+    subgraph "Timescale 2: Decision Scale (Emergent Routing)"
         Err -->|Module Bid b_m| BG[Basal Ganglia Gating]
         BG -->|Stochastic Gumbel-Max Gating| Win[Strict One-Hot Selection]
         Win -->|Workspace Write| WS[Central Workspace]
         WS -->|Broadcast loop next step| PCA
     end
 
-    subgraph Timescale 3: Learning Scale (Synaptic Plasticity)
+    subgraph "Timescale 3: Learning Scale (Synaptic Plasticity)"
         Err -->|Eligibility traces e| Plast[Local Synaptic Update]
         WS -->|Eligibility traces e| Plast
         Surp[Local Surprise S] -->|Metaplastic Fuse theta| Plast
