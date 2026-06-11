@@ -1,5 +1,5 @@
 import numpy as np
-from grail.rng import SeededRNG
+from cerebrum.rng import SeededRNG
 
 def test_reproducible():
     a = SeededRNG(123).normal((4,)); b = SeededRNG(123).normal((4,))

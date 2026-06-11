@@ -1,21 +1,21 @@
-"""C3-FullPipeline — does the FACTORED latent SURVIVE the full unified GRAIL pipeline?
+"""C3-FullPipeline — does the FACTORED latent SURVIVE the full unified CEREBRUM pipeline?
 
 WHY THIS EXISTS
 ---------------
-benchmarks/run_factorization.py established that a BARE PCAreas hierarchy, trained by GRAIL's
+benchmarks/run_factorization.py established that a BARE PCAreas hierarchy, trained by CEREBRUM's
 LOCAL four-factor plasticity, builds a compositionally-generalizing FACTORED latent: each factor
 (f1, f2) is linearly decodable off the trained top latent x[top] on HELD-OUT combos at ~0.92
 (chance 0.167), above an untrained same-architecture latent (~0.825) and a random-projection of
 the obs (~0.85). That was the ISOLATED cortical module.
 
 This probe asks the robustness question: does that factored code SURVIVE when the SAME cortical
-module operates inside the RICHER unified dynamics of grail/unified.GRAILNet — i.e. with
+module operates inside the RICHER unified dynamics of cerebrum/unified.CerebrumNet — i.e. with
 
   * the grid-HEAD STRUCTURAL top-down prediction active during settle & learning,
   * the thalamo-cortical WORKSPACE broadcast (efference copy) feeding back each step,
   * the surprise-gated METAPLASTIC FUSE gating the local four-factor weight update,
 
-individually and ALL TOGETHER (the literal GRAILNet with n_modules=1)? Or do the broadcast / gate /
+individually and ALL TOGETHER (the literal CerebrumNet with n_modules=1)? Or do the broadcast / gate /
 grid DISRUPT the factorization (held-out decode drops)? This tells us whether the representation
 win is a property of the whole system or only of the isolated module.
 
@@ -28,8 +28,8 @@ For each condition we:
      active that were present in training, read the top latent x[top].
   3. Fit a LINEAR readout (nearest-class-mean AND logistic-GD) on SEEN-combo latents to predict
      f1, and separately f2, and EVALUATE on HELD-OUT combos.
-The readout is a MEASUREMENT PROBE only (exactly like the existing backprop_mlp comparator); GRAIL
-itself does NO backprop and grail/ is NOT modified by this benchmark.
+The readout is a MEASUREMENT PROBE only (exactly like the existing backprop_mlp comparator); CEREBRUM
+itself does NO backprop and cerebrum/ is NOT modified by this benchmark.
 
 CONTROLS (same logic as the bare probe — so a "survives" result is attributable to LEARNING)
 --------------------------------------------------------------------------------------------
@@ -49,7 +49,7 @@ CONDITIONS
   grid      — grid-HEAD structural top-down prediction injected into module settle & errors
   broadcast — module's own read written to a 1-slot workspace, broadcast back as efference copy
   fuse      — surprise-gated metaplastic theta in [0,1] multiplies the four-factor weight update
-  full      — the literal grail/unified.GRAILNet with n_modules=1 (grid + gate + workspace + fuse)
+  full      — the literal cerebrum/unified.CerebrumNet with n_modules=1 (grid + gate + workspace + fuse)
 
 HONEST GOAL
 -----------
@@ -64,16 +64,16 @@ import numpy as np
 from dataclasses import dataclass, field, replace
 from typing import Optional
 
-from grail.config import GRAILConfig
-from grail.pc_core import PCAreas
-from grail.grid_head import GridHead
-from grail.workspace import Workspace
-from grail.metaplasticity import MetaplasticFuse
-from grail.neuromod import Neuromodulator
-from grail.plasticity import Eligibility, weight_update, precision_update, feedback_update
-from grail.rng import SeededRNG
-from grail.types import Exogenous
-from grail.unified import GRAILNet
+from cerebrum.config import CerebrumConfig
+from cerebrum.pc_core import PCAreas
+from cerebrum.grid_head import GridHead
+from cerebrum.workspace import Workspace
+from cerebrum.metaplasticity import MetaplasticFuse
+from cerebrum.neuromod import Neuromodulator
+from cerebrum.plasticity import Eligibility, weight_update, precision_update, feedback_update
+from cerebrum.rng import SeededRNG
+from cerebrum.types import Exogenous
+from cerebrum.unified import CerebrumNet
 
 from benchmarks.stats import mean_ci, fmt_ci
 from benchmarks.tasks.compositional import CompositionalTask, _train_pc
@@ -87,9 +87,9 @@ _GRID_ACTION_SCALE = 0.5       # exogenous action magnitude derived from the com
 CONDITIONS = ("bare", "grid", "broadcast", "fuse", "full")
 
 # OPT-IN measurement toggle (default OFF -> byte-identical to the original probe; the bare smoke
-# test stays green). When GRAIL_BALANCE_GRID_PRECISION=1 every cfg built below carries the new
+# test stays green). When CEREBRUM_BALANCE_GRID_PRECISION=1 every cfg built below carries the new
 # precision-balancing flag so we can measure whether the grid/full factorization RECOVERS.
-_BALANCE = os.environ.get("GRAIL_BALANCE_GRID_PRECISION", "0") not in ("0", "", "false", "False")
+_BALANCE = os.environ.get("CEREBRUM_BALANCE_GRID_PRECISION", "0") not in ("0", "", "false", "False")
 
 
 def _maybe_balance(cfg):
@@ -101,8 +101,8 @@ def _maybe_balance(cfg):
 
 # ------------------------------------------------------------------------------------------
 # A small per-condition controller that holds the pipeline pieces (grid / workspace / fuse).
-# It is NOT part of GRAIL; it merely wires the EXISTING grail/ modules around a PCAreas exactly
-# as grail/unified.GRAILNet wires them, so each condition turns ON one pipeline mechanism while
+# It is NOT part of CEREBRUM; it merely wires the EXISTING cerebrum/ modules around a PCAreas exactly
+# as cerebrum/unified.CerebrumNet wires them, so each condition turns ON one pipeline mechanism while
 # the LOCAL four-factor weight rule is byte-for-byte the same as compositional._train_pc.
 # ------------------------------------------------------------------------------------------
 @dataclass
@@ -138,7 +138,7 @@ def _combo_action(f1, f2, A, B):
 
 def _grid_top_pred(pcfg, content_dim):
     """Structural top-down prediction for the TOP content area: frozen decode of the grid
-    completion, projected to content_dim. Mirrors GRAILNet._top_pred_from_grid exactly — the grid
+    completion, projected to content_dim. Mirrors CerebrumNet._top_pred_from_grid exactly — the grid
     prior is consumed at the module's TOP area (predict(L-1) returns top_pred), so it shapes the
     latent x[top] the readout reads. (dims[-1], NOT dims[0].)"""
     if not pcfg.use_grid or pcfg._grid is None or pcfg._grid.store is None:
@@ -152,7 +152,7 @@ def _grid_top_pred(pcfg, content_dim):
 
 def _broadcast(pcfg, net):
     """Per-area efference-copy structure the module settle expects: the workspace broadcast enters
-    ONLY the bottom area as a prediction term (same placement as GRAILNet._broadcast_for_module).
+    ONLY the bottom area as a prediction term (same placement as CerebrumNet._broadcast_for_module).
     It NEVER enters any weight update (the four-factor rule below reads only Pi/eps/eligibility)."""
     if not pcfg.use_broadcast or pcfg._wksp is None:
         return None
@@ -200,7 +200,7 @@ def train_pipeline_module(task, cfg, pcfg, passes, eta_w_scale=0.6, tau_w=1.0):
         for (f1, f2) in order:
             obs = task.embed(f1, f2)
             # ---- grid prior: path-integrate on the combo's exogenous action, bind obs (reward-PE
-            #      gated, exactly as GRAILNet.step does) so the structural store grows then stops ----
+            #      gated, exactly as CerebrumNet.step does) so the structural store grows then stops ----
             top_pred = None
             if pcfg.use_grid:
                 pcfg._grid.reset()
@@ -261,16 +261,16 @@ def settle_top_latent_pipeline(net, obs, steps, pcfg, f1=0, f2=0, A=1, B=1, seed
 
 
 # ------------------------------------------------------------------------------------------
-# Full-GRAILNet path: the literal unified network with a single cortical module.
+# Full-CerebrumNet path: the literal unified network with a single cortical module.
 # ------------------------------------------------------------------------------------------
-def train_full_grailnet(task, cfg, passes, seed=0):
-    """Train grail/unified.GRAILNet with n_modules=1 on the train combos (the module's bottom area
+def train_full_cerebrumnet(task, cfg, passes, seed=0):
+    """Train cerebrum/unified.CerebrumNet with n_modules=1 on the train combos (the module's bottom area
     is the FULL obs), driving the grid with the combo's exogenous action so the structural prior is
     combo-consistent. Returns (net, the single module) so the latent readout uses net.settle_only."""
     slice_dim = task.obs_dim
     mdims = (slice_dim,) + tuple(cfg.dims[1:])
     gcfg = replace(cfg, dims=mdims)
-    net = GRAILNet(n_modules=1, k_slots=1, slice_dim=slice_dim, cfg=gcfg)
+    net = CerebrumNet(n_modules=1, k_slots=1, slice_dim=slice_dim, cfg=gcfg)
     combos = list(task.train_combos)
     order_rng = np.random.default_rng(cfg.seed + 99)
     for p in range(passes):
@@ -284,7 +284,7 @@ def train_full_grailnet(task, cfg, passes, seed=0):
 
 
 def settle_top_latent_full(net, task, f1, f2, T=0.0):
-    """Noise-free latent readout for the full GRAILNet: drive the grid to this combo's phase, settle
+    """Noise-free latent readout for the full CerebrumNet: drive the grid to this combo's phase, settle
     every module (only one here) under grid top-down + current workspace broadcast, read x[top].
     Uses the public net.settle_only (no plasticity) so the read reflects the LEARNED weights."""
     obs = task.embed(f1, f2)
@@ -313,12 +313,12 @@ def pipeline_probe(task, train, held, dims, condition, passes=60, seed=0, decode
     steps = 24
     f1tr = np.array([f for f, _ in train]); f2tr = np.array([f for _, f in train])
     f1te = np.array([f for f, _ in held]); f2te = np.array([f for _, f in held])
-    cfg = _maybe_balance(GRAILConfig(dims=dims, n_settle=12, seed=seed, eta_w=0.6, tau_w=1.0))
+    cfg = _maybe_balance(CerebrumConfig(dims=dims, n_settle=12, seed=seed, eta_w=0.6, tau_w=1.0))
 
     if condition == "full":
-        trained = train_full_grailnet(task, cfg, passes=passes, seed=seed)
+        trained = train_full_cerebrumnet(task, cfg, passes=passes, seed=seed)
         untr_cfg = replace(cfg, dims=(task.obs_dim,) + tuple(cfg.dims[1:]))
-        untrained = GRAILNet(n_modules=1, k_slots=1, slice_dim=task.obs_dim, cfg=untr_cfg)
+        untrained = CerebrumNet(n_modules=1, k_slots=1, slice_dim=task.obs_dim, cfg=untr_cfg)
 
         def lat_full(net):
             Ltr = np.array([settle_top_latent_full(net, task, f1, f2) for (f1, f2) in train])
@@ -477,7 +477,7 @@ def _verdict(out):
                  "the |x| blow-up above tracks the decode COLLAPSE. The +broadcast (efference copy "
                  "into the bottom area, scaled to the obs) and +fuse (theta in [0,1] only SHRINKS "
                  "the four-factor update) leave the obs-driven latent intact -> factorization "
-                 "survives those. The full GRAILNet stacks grid+gate+workspace -> worst disruption.")
+                 "survives those. The full CerebrumNet stacks grid+gate+workspace -> worst disruption.")
     return "\n".join(lines)
 
 
@@ -505,10 +505,10 @@ def _print_block(out):
 
 if __name__ == "__main__":
     print("=" * 96)
-    print("C3-FullPipeline — does the FACTORED latent SURVIVE the full unified GRAIL pipeline?")
+    print("C3-FullPipeline — does the FACTORED latent SURVIVE the full unified CEREBRUM pipeline?")
     print("=" * 96)
-    print("Linear readouts are MEASUREMENT probes only (like backprop_mlp comparator); GRAIL does NO")
-    print("backprop and grail/ is unmodified. The 'bare' condition reproduces run_factorization.py.")
+    print("Linear readouts are MEASUREMENT probes only (like backprop_mlp comparator); CEREBRUM does NO")
+    print("backprop and cerebrum/ is unmodified. The 'bare' condition reproduces run_factorization.py.")
     print()
     out = run_sweep()
     _print_block(out)

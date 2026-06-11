@@ -18,7 +18,7 @@ Honest negative reported if alignment rises but representation still fails.
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
-from grail.config import GRAILConfig
+from cerebrum.config import CerebrumConfig
 from benchmarks.stats import mean_ci, fmt_ci
 from benchmarks.tasks.compositional import CompositionalTask, run_pc_completion
 
@@ -32,7 +32,7 @@ def run_probe(width=24, depth=3, A=4, B=4, part_dim=8, passes=80,
         for s in seeds:
             task = tasks[s]
             dims = tuple([task.obs_dim] + [width] * (depth - 1))
-            cfg = GRAILConfig(dims=dims, n_settle=12, seed=s,
+            cfg = CerebrumConfig(dims=dims, n_settle=12, seed=s,
                               align_feedback=flag, lam_kp=lam_kp)
             res = run_pc_completion(task, cfg, passes=passes)
             held.append(res["acc_heldout"]); trn.append(res["acc_train"])

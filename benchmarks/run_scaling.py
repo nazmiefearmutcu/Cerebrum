@@ -1,6 +1,6 @@
 """I6 — Scaling probe (HONEST, EXPLORATORY).
 
-This harness runs the existing GRAIL tasks at LARGER sizes and reports, with
+This harness runs the existing CEREBRUM tasks at LARGER sizes and reports, with
 confidence intervals over seeds, WHERE the brain-axis advantages HOLD and WHERE
 they BREAK. It is explicitly an UNPROVEN BET (spec §7 open-problem #1): no
 fully-local, transport-relaxed, noisy-sampling method has matched backprop on
@@ -8,14 +8,14 @@ hard tasks. The deliverable is honest evidence, NOT a "scaling solved" claim.
 
 Three axes:
   (a) probe_task1_scaling   — few-shot graph-completion on bigger gridworlds /
-      larger vocab; GRAIL-grid vs flat-prior vs backprop-MLP across seeds.
+      larger vocab; CEREBRUM-grid vs flat-prior vs backprop-MLP across seeds.
   (b) probe_forgetting_scaling — catastrophic-forgetting with MORE sequential
       tasks (A->B->C->D->E); does the surprise-gated fuse still protect the
       FIRST task after several more, or does it break?
   (c) probe_depth_scaling   — deeper PC hierarchies (3-4 areas) on Task-1.
 
-BAN COMPLIANCE: everything in this file routes through the existing grail/
-primitives. No backprop in GRAIL paths (the MLP is the labeled comparator),
+BAN COMPLIANCE: everything in this file routes through the existing cerebrum/
+primitives. No backprop in CEREBRUM paths (the MLP is the labeled comparator),
 scalar M only, strict one-hot is irrelevant (no workspace here), z_act is
 Exogenous (graph_completion drives the grid via Exogenous moves), and the
 N-task forgetting loop reuses ONLY local Pi/eps/eligibility surprise in the
@@ -28,17 +28,17 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 
 import numpy as np
 
-from grail.config import GRAILConfig
-from grail.network import GRAILCore
-from grail.pc_core import PCAreas
-from grail.plasticity import Eligibility, weight_update, precision_update, feedback_update
-from grail.metaplasticity import MetaplasticFuse
-from grail.neuromod import Neuromodulator
-from grail.rng import SeededRNG
+from cerebrum.config import CerebrumConfig
+from cerebrum.network import CerebrumCore
+from cerebrum.pc_core import PCAreas
+from cerebrum.plasticity import Eligibility, weight_update, precision_update, feedback_update
+from cerebrum.metaplasticity import MetaplasticFuse
+from cerebrum.neuromod import Neuromodulator
+from cerebrum.rng import SeededRNG
 
 from benchmarks.stats import mean_ci
 from benchmarks.tasks.gridworld import make_episode
-from benchmarks.tasks.graph_completion import run_grail_episode
+from benchmarks.tasks.graph_completion import run_cerebrum_episode
 from benchmarks.baselines.flat_prior import run_flat_episode
 from benchmarks.baselines.backprop_mlp import run_mlp_episode
 
@@ -63,9 +63,9 @@ def _stat(raw):
 def probe_task1_scaling(sizes=((4, 4, 5), (6, 6, 8), (8, 8, 10)),
                         Ks=(5, 10, 20), seeds=(0, 1, 2, 3, 4),
                         n_settle=10, mlp_epochs=80):
-    """For each (h,w,vocab) size and each K, score GRAIL-grid vs flat vs MLP.
+    """For each (h,w,vocab) size and each K, score CEREBRUM-grid vs flat vs MLP.
 
-    Returns out[(h,w,vocab)][K] = {grail|flat|mlp: {mean,ci,raw}, 'chance': 1/vocab}.
+    Returns out[(h,w,vocab)][K] = {cerebrum|flat|mlp: {mean,ci,raw}, 'chance': 1/vocab}.
     The K observations are held fixed across the three methods (same episode).
     """
     out = {}
@@ -78,13 +78,13 @@ def probe_task1_scaling(sizes=((4, 4, 5), (6, 6, 8), (8, 8, 10)),
                 # grid head sized generously so larger graphs still path-integrate;
                 # latent areas scale modestly with vocab so the decode has capacity.
                 lat = max(8, 2 * vocab)
-                cfg = GRAILConfig(dims=(vocab, lat, lat), grid_n_modules=8,
+                cfg = CerebrumConfig(dims=(vocab, lat, lat), grid_n_modules=8,
                                   n_settle=n_settle, seed=s)
-                g.append(run_grail_episode(GRAILCore(cfg), ep))
+                g.append(run_cerebrum_episode(CerebrumCore(cfg), ep))
                 f.append(run_flat_episode(ep))
                 m.append(run_mlp_episode(ep, epochs=mlp_epochs, seed=s))
             out[(h, w, vocab)][K] = {
-                "grail": _stat(g), "flat": _stat(f), "mlp": _stat(m),
+                "cerebrum": _stat(g), "flat": _stat(f), "mlp": _stat(m),
                 "chance": 1.0 / vocab,
             }
     return out
@@ -94,7 +94,7 @@ def probe_task1_scaling(sizes=((4, 4, 5), (6, 6, 8), (8, 8, 10)),
 # (b) Catastrophic forgetting with MORE sequential tasks (A->B->C->D->E)
 # ---------------------------------------------------------------------------
 def _make_cfg_continual(seed, dim):
-    return GRAILConfig(
+    return CerebrumConfig(
         dims=(dim, LATENT), n_settle=10, seed=seed,
         tau_w=TAU_W, eta_w=ETA_W, tau_e=TAU_E, tau_r=TAU_R,
         tau_c=TAU_C, alpha_c=ALPHA_C, beta_c=BETA_C, g_theta=G_THETA, tau_S=TAU_S,
@@ -185,13 +185,13 @@ def probe_forgetting_scaling(n_tasks=5, seeds=(0, 1, 2, 3, 4),
 # ---------------------------------------------------------------------------
 def probe_depth_scaling(depths=(2, 3, 4), Ks=(5, 10, 20), seeds=(0, 1, 2, 3, 4),
                         h=6, w=6, vocab=8, n_settle=10):
-    """Task-1 graph-completion with deeper GRAIL PC hierarchies.
+    """Task-1 graph-completion with deeper CEREBRUM PC hierarchies.
 
     depth = number of PC AREAS (dims length). depth=2 -> (vocab, lat); depth=3 ->
     (vocab, lat, lat); etc. The grid HEAD/decode is unchanged — this isolates the
     effect of stacking more error-neuron areas on the sample-efficiency axis.
 
-    Returns out[depth][K] = {'grail': {mean,ci,raw}, 'chance': 1/vocab}.
+    Returns out[depth][K] = {'cerebrum': {mean,ci,raw}, 'chance': 1/vocab}.
     """
     out = {}
     lat = max(8, 2 * vocab)
@@ -202,9 +202,9 @@ def probe_depth_scaling(depths=(2, 3, 4), Ks=(5, 10, 20), seeds=(0, 1, 2, 3, 4),
             g = []
             for s in seeds:
                 ep = make_episode(h=h, w=w, vocab=vocab, K=K, seed=s)
-                cfg = GRAILConfig(dims=dims, grid_n_modules=8, n_settle=n_settle, seed=s)
-                g.append(run_grail_episode(GRAILCore(cfg), ep))
-            out[depth][K] = {"grail": _stat(g), "chance": 1.0 / vocab}
+                cfg = CerebrumConfig(dims=dims, grid_n_modules=8, n_settle=n_settle, seed=s)
+                g.append(run_cerebrum_episode(CerebrumCore(cfg), ep))
+            out[depth][K] = {"cerebrum": _stat(g), "chance": 1.0 / vocab}
     return out
 
 
@@ -212,20 +212,20 @@ def probe_depth_scaling(depths=(2, 3, 4), Ks=(5, 10, 20), seeds=(0, 1, 2, 3, 4),
 # Honest verdict helpers
 # ---------------------------------------------------------------------------
 def verdict_task1(res):
-    """HONEST per-size verdict: does GRAIL-grid's advantage over the better of
+    """HONEST per-size verdict: does CEREBRUM-grid's advantage over the better of
     {flat, backprop-MLP} hold (CI-separated), shrink, or break as the graph grows?"""
     lines = []
     sizes = sorted(res, key=lambda s: (s[0] * s[1], s[2]))
     for size in sizes:
         h, w, vocab = size
-        margins = []  # over K: (grail_mean - best_baseline_mean), CI-separation flag
+        margins = []  # over K: (cerebrum_mean - best_baseline_mean), CI-separation flag
         for K in sorted(res[size]):
             row = res[size][K]
-            gm, gci = row["grail"]["mean"], row["grail"]["ci"]
+            gm, gci = row["cerebrum"]["mean"], row["cerebrum"]["ci"]
             bm = max(row["flat"]["mean"], row["mlp"]["mean"])
             bci = (row["flat"]["ci"] if row["flat"]["mean"] >= row["mlp"]["mean"]
                    else row["mlp"]["ci"])
-            sep = (gm - gci) > (bm + bci)        # GRAIL CI strictly above best baseline CI
+            sep = (gm - gci) > (bm + bci)        # CEREBRUM CI strictly above best baseline CI
             margins.append((K, gm - bm, sep))
         any_win = any(sep for _, _, sep in margins)
         all_win = all(sep for _, _, sep in margins)
@@ -284,22 +284,22 @@ def _fmt(stat):
 
 def main():
     print("=" * 78)
-    print("GRAIL SCALING PROBE — honest, exploratory (UNPROVEN BET; spec §7 OP#1)")
+    print("CEREBRUM SCALING PROBE — honest, exploratory (UNPROVEN BET; spec §7 OP#1)")
     print("=" * 78)
 
     # (a) Task-1 at larger sizes. 8 seeds: at n=5 the CI half-widths (esp. at K=5 on
     # small grids with few held-out queries) are wide enough to mask a large MEAN
     # advantage; 8 seeds tighten them so the HOLDS/BREAKS verdict tracks the means.
     print("\n(a) Task-1 few-shot graph-completion at larger sizes")
-    print("    (mean +/- 95% CI over 8 seeds; GRAIL-grid vs flat-prior vs backprop-MLP)")
+    print("    (mean +/- 95% CI over 8 seeds; CEREBRUM-grid vs flat-prior vs backprop-MLP)")
     t1 = probe_task1_scaling(seeds=(0, 1, 2, 3, 4, 5, 6, 7))
     for size in sorted(t1, key=lambda s: (s[0] * s[1], s[2])):
         h, w, vocab = size
         print(f"\n  gridworld {h}x{w}, vocab={vocab} (chance={1.0/vocab:.3f})")
-        print(f"    {'K':>4}  {'GRAIL-grid':>18}  {'flat-prior':>18}  {'backprop-MLP':>18}")
+        print(f"    {'K':>4}  {'CEREBRUM-grid':>18}  {'flat-prior':>18}  {'backprop-MLP':>18}")
         for K in sorted(t1[size]):
             row = t1[size][K]
-            print(f"    {K:>4}  {_fmt(row['grail']):>18}  {_fmt(row['flat']):>18}  {_fmt(row['mlp']):>18}")
+            print(f"    {K:>4}  {_fmt(row['cerebrum']):>18}  {_fmt(row['flat']):>18}  {_fmt(row['mlp']):>18}")
     print()
     print(verdict_task1(t1))
 
@@ -322,7 +322,7 @@ def main():
     dr = probe_depth_scaling(seeds=(0, 1, 2, 3, 4, 5, 6, 7))
     print(f"    {'depth(areas)':<14}" + "".join(f"{'K='+str(K):>16}" for K in (5, 10, 20)))
     for depth in sorted(dr):
-        cells = "".join(f"{_fmt(dr[depth][K]['grail']):>16}" for K in sorted(dr[depth]))
+        cells = "".join(f"{_fmt(dr[depth][K]['cerebrum']):>16}" for K in sorted(dr[depth]))
         print(f"    {depth:<14}{cells}")
     print("    (Task-1 completion is grid-HEAD driven; extra PC areas add error-neuron")
     print("     depth but do not change the path-integration mechanism — expect flat.)")

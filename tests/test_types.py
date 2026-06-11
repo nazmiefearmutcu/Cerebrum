@@ -1,5 +1,5 @@
 import numpy as np, pytest
-from grail.types import Exogenous
+from cerebrum.types import Exogenous
 
 def test_exogenous_wraps_array():
     a = Exogenous(np.array([1.0, 0.0]))

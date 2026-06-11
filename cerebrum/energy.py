@@ -1,4 +1,4 @@
-"""Energy / operation accounting for GRAIL — success-axis-2 instrumentation.
+"""Energy / operation accounting for CEREBRUM — success-axis-2 instrumentation.
 
 The honest energy story (spec section neuromorphic_mapping): only DYNAMIC switching energy decays
 with competence (as prediction error eps -> 0, error neurons fall silent and stop driving their
@@ -40,16 +40,16 @@ def dynamic_energy_magnitude(net):
 
 def dense_backprop_ops(dims):
     """Dense forward+backward MAC count for a matched backprop net: every synapse computes every
-    step (rho = 1), forward AND backward. The comparator GRAIL's event-driven sparsity undercuts."""
+    step (rho = 1), forward AND backward. The comparator CEREBRUM's event-driven sparsity undercuts."""
     fwd = sum(dims[l] * dims[l + 1] for l in range(len(dims) - 1))
     return 2 * fwd     # forward + backward dense passes
 
 
 def global_comm_per_update(dims):
     """Global-communication events crossing the whole network per WEIGHT UPDATE.
-    GRAIL: ONE scalar neuromodulator M (a single diffuse wire). Backprop: an error VECTOR at every
+    CEREBRUM: ONE scalar neuromodulator M (a single diffuse wire). Backprop: an error VECTOR at every
     layer (O(depth) vector elements that must be transported between layers)."""
     return {
-        "grail_learn_scalars": 1,
+        "cerebrum_learn_scalars": 1,
         "backprop_error_vector_elems": int(sum(dims[1:])),   # error vectors at each non-input layer
     }

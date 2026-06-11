@@ -1,4 +1,4 @@
-# GRAIL — Grid-Referenced Annealed Inference with Local plasticity, over a Cortical Workspace
+# CEREBRUM — Grid-Referenced Annealed Inference with Local plasticity, over a Cortical Workspace
 
 **Design spec — 2026-06-08**
 Status: APPROVED for implementation (staged core, pure NumPy, no autograd).
@@ -8,7 +8,7 @@ Produced by a 13-agent scientific council (6 domain designers → chief-architec
 
 ## 0. What this is (and what it is NOT)
 
-GRAIL is a predictive-coding, **backprop-free**, **fully-local-plasticity**, **neuromorphic-targeted** learning architecture. It is a single temperature-controlled free-energy machine in which **inference, routing, and learning are all noisy gradient descent on ONE functional `F`** at three timescales.
+CEREBRUM is a predictive-coding, **backprop-free**, **fully-local-plasticity**, **neuromorphic-targeted** learning architecture. It is a single temperature-controlled free-energy machine in which **inference, routing, and learning are all noisy gradient descent on ONE functional `F`** at three timescales.
 
 **It is NOT** a polished sequence-mixer (DeltaNet/Mamba/linear-attention), NOT trying to beat the transformer on GPU throughput or large-scale perplexity, and NOT using DFA. Those are the gravity well that killed the previous attempt (PRISM-Seq → Gated-DeltaNet + DFA). The success axis is **fixed** to brain-favorable axes only:
 
@@ -23,9 +23,9 @@ The user's opening line ("dramatically surpass the transformer") is reconciled w
 
 ---
 
-## 1. The five pillars and how GRAIL satisfies each
+## 1. The five pillars and how CEREBRUM satisfies each
 
-| Pillar | Mechanism in GRAIL |
+| Pillar | Mechanism in CEREBRUM |
 |---|---|
 | **1. Predictive-coding substrate** | Each cortical area `l` has a physically separate error-neuron population `ε_l = x_l − ŷ_l`. Inference = activities settling to minimize precision-weighted error. Errors flow, not raw activations. |
 | **2. Fully-local plasticity** | Four-factor Hebbian `τ_w Ẇ = M·θ·Π·ε·e`; every factor physically present at the synapse. The same `ε` that drives settling drives learning. |
@@ -139,7 +139,7 @@ The rotational recurrence `g_t = R(z_act)g_{t−1}` is acceptable ONLY because (
 
 ## 6. Novelty — honest tally (borrowed vs new)
 
-GRAIL is a new **synthesis** + ~2 thin candidate-novelties + 1 novel local instantiation + 1 novel architectural claim. **ZERO open problems fully solved.**
+CEREBRUM is a new **synthesis** + ~2 thin candidate-novelties + 1 novel local instantiation + 1 novel architectural claim. **ZERO open problems fully solved.**
 
 **Genuinely / thinly NEW:**
 1. *[thin]* **Sampling-temperature folded into the neuromodulatory field** — identifying the Langevin posterior-sampling temperature of the inference SDE with the same scalar `M` that sets precision/gate-temp/learning-rate, so exploration-noise co-varies with attention/routing/plasticity. (Caveat: if even this leg has precedent, it reduces to pure synthesis.)
@@ -165,11 +165,11 @@ GRAIL is a new **synthesis** + ~2 thin candidate-novelties + 1 novel local insta
 
 ## 8. Differentiation (point-by-point)
 
-- **vs Predictive Coding:** GRAIL adds Langevin noise (samples, not MAP), replaces `Wᵀ` with separate `B`, embeds PC energy as only term 1 of a larger F with frozen grid prior + stochastic gate + entropy terms, couples precision to the shared neuromodulator.
-- **vs EqProp** (strawman removed): one noisy phase (no nudged phase) + scalar-gated Hebbian + structured grid prior + stochastic gate, vs two deterministic contrastive phases. GRAIL also samples a biased approximate posterior (surrogate energy) — honest.
+- **vs Predictive Coding:** CEREBRUM adds Langevin noise (samples, not MAP), replaces `Wᵀ` with separate `B`, embeds PC energy as only term 1 of a larger F with frozen grid prior + stochastic gate + entropy terms, couples precision to the shared neuromodulator.
+- **vs EqProp** (strawman removed): one noisy phase (no nudged phase) + scalar-gated Hebbian + structured grid prior + stochastic gate, vs two deterministic contrastive phases. CEREBRUM also samples a biased approximate posterior (surrogate energy) — honest.
 - **vs Forward-Forward:** opposite — errors flow, activities settle, predictions are generative top-down, inference is recurrent + stochastic (FF is feedforward, two forward passes, no error neuron).
-- **vs Target Prop:** GRAIL never computes/propagates a target vector; only local `ε` + scalar `M` cross synapses. No inverse networks.
-- **vs DFA** (the key distinction): DFA broadcasts a global error VECTOR through a random matrix to every layer's weight update — banned. GRAIL broadcasts only a SCALAR `M` into weight updates; all spatial credit is the locally-settled `ε`. The feedback `B` relays error to one adjacent area during INFERENCE (not the learning signal). "If M became a vector this would be DFA" is the line we refuse to cross.
+- **vs Target Prop:** CEREBRUM never computes/propagates a target vector; only local `ε` + scalar `M` cross synapses. No inverse networks.
+- **vs DFA** (the key distinction): DFA broadcasts a global error VECTOR through a random matrix to every layer's weight update — banned. CEREBRUM broadcasts only a SCALAR `M` into weight updates; all spatial credit is the locally-settled `ε`. The feedback `B` relays error to one adjacent area during INFERENCE (not the learning signal). "If M became a vector this would be DFA" is the line we refuse to cross.
 
 ---
 
@@ -193,10 +193,10 @@ GRAIL is a new **synthesis** + ~2 thin candidate-novelties + 1 novel local insta
 **Substrate:** GPU/CPU SIMULATION only (Euler-Maruyama for the SDEs); pure NumPy, NO autograd, all local rules written by hand. GPU is the microscope, never the success axis. Report nothing about tokens/sec or perplexity; report latency only as a physics property excluded from any transformer head-to-head.
 
 ### Task 1 — Few-shot generalization (does the grid prior buy sample efficiency?)
-TEM-class relational task: structured gridworld / graph navigation + a small relational-analogy set (transitive-inference chains; 5-way/5-shot Omniglot-style bind-then-complete). **Metric:** fraction of UNOBSERVED graph edges correctly predicted after `K ∈ {5,10,20}` observations (graph-completion score). **Baselines:** (a) GRAIL with grid HEAD, (b) GRAIL with flat/additive positional prior (ablates Pillar 3), (c) small backprop MLP/transformer on the same K. **Win:** GRAIL-grid beats both flat-prior and backprop at K=5–20 on graph-completion; losing at large K is acceptable. **BAN-1 enforcement:** automated check that `z_act` has ZERO learned/data-dependent connectivity from `x,W,z`.
+TEM-class relational task: structured gridworld / graph navigation + a small relational-analogy set (transitive-inference chains; 5-way/5-shot Omniglot-style bind-then-complete). **Metric:** fraction of UNOBSERVED graph edges correctly predicted after `K ∈ {5,10,20}` observations (graph-completion score). **Baselines:** (a) CEREBRUM with grid HEAD, (b) CEREBRUM with flat/additive positional prior (ablates Pillar 3), (c) small backprop MLP/transformer on the same K. **Win:** CEREBRUM-grid beats both flat-prior and backprop at K=5–20 on graph-completion; losing at large K is acceptable. **BAN-1 enforcement:** automated check that `z_act` has ZERO learned/data-dependent connectivity from `x,W,z`.
 
 ### Task 2 — Catastrophic forgetting (does the metaplastic fuse work — the OP3 contingency)
-Sequential stream A→B→C, NO iid batch, NO replay, NO task-boundary signal (split-MNIST/split-Omniglot or sequential gridworld rooms). **Metric:** accuracy on A after learning B,C (backward transfer); forward accuracy on C; plot `θ̄`,`c̄` over time. **Baselines:** GRAIL with `θ≡1` (always-plastic → should forget), GRAIL with EWC-style global penalty, online SGD. **Win:** GRAIL retains A within a small drop while still learning C, WITHOUT replay, beating always-plastic and matching/beating EWC without its Fisher pass — AND holding without per-task retuning of `(α,β,τ_c)`.
+Sequential stream A→B→C, NO iid batch, NO replay, NO task-boundary signal (split-MNIST/split-Omniglot or sequential gridworld rooms). **Metric:** accuracy on A after learning B,C (backward transfer); forward accuracy on C; plot `θ̄`,`c̄` over time. **Baselines:** CEREBRUM with `θ≡1` (always-plastic → should forget), CEREBRUM with EWC-style global penalty, online SGD. **Win:** CEREBRUM retains A within a small drop while still learning C, WITHOUT replay, beating always-plastic and matching/beating EWC without its Fisher pass — AND holding without per-task retuning of `(α,β,τ_c)`.
 
 ### Task 3 — Operations / energy counter (instrument, not GPU clock)
 Per-step counters:
@@ -205,7 +205,7 @@ Per-step counters:
 - (iii) TRUE energy/sample = settle-steps-to-mixing × per-step synaptic-ops (`ρ·FANIN·N`), during learning AND at convergence.
 - (iv) STATIC/leakage power estimate (independent of `ρ`) + energy of per-synapse analog-state updates (`e, Π, S̄, c`).
 - (v) settle-time-to-tolerance (physics property, not a success metric).
-**Win:** GRAIL shows O(1) LEARN-time scalar comm + a decreasing dynamic-energy-per-sample curve (report the TOTAL-energy curve honestly — static + settling do not necessarily decay). Backprop shows O(depth) vector broadcasts + dense MAC (`ρ=1`).
+**Win:** CEREBRUM shows O(1) LEARN-time scalar comm + a decreasing dynamic-energy-per-sample curve (report the TOTAL-energy curve honestly — static + settling do not necessarily decay). Backprop shows O(depth) vector broadcasts + dense MAC (`ρ=1`).
 
 ### Ablations (each pillar/invariant is load-bearing)
 - `T_floor → 0` (kills Pillar 4 → expect dead experts / over-confidence / forgetting).

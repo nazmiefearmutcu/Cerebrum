@@ -1,7 +1,7 @@
 import numpy as np
 
 def run_mlp_episode(ep, epochs=100, hidden=32, lr=0.1, seed=0):
-    """Baseline COMPARATOR ONLY (uses backprop — GRAIL never does). Maps start-cell-onehot + disp -> obs."""
+    """Baseline COMPARATOR ONLY (uses backprop — CEREBRUM never does). Maps start-cell-onehot + disp -> obs."""
     rng = np.random.default_rng(seed)
     cells = sorted(ep.observed_cells); idx = {c:i for i,c in enumerate(cells)}
     nin = len(cells) + 2; nout = ep.gw.vocab

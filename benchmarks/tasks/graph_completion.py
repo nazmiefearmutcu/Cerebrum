@@ -1,5 +1,5 @@
 import numpy as np
-from grail.types import Exogenous
+from cerebrum.types import Exogenous
 
 def _goto_cell(net, cell):
     """Place the grid at the CANONICAL coordinate of `cell` via exogenous moves from origin.
@@ -10,7 +10,7 @@ def _goto_cell(net, cell):
     net.grid.reset()
     net.move(Exogenous(np.array([cell[0], cell[1]], float)))
 
-def run_grail_episode(net, ep):
+def run_cerebrum_episode(net, ep):
     """Walk the episode binding obs at each cell; then score held-out path-integrated completions."""
     # walk: at each step bind current obs at that cell's CANONICAL grid coordinate.
     # bind-pos for a cell == query-pos for the same cell (both the canonical coordinate),

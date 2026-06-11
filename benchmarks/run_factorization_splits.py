@@ -70,15 +70,15 @@ Then the headline verdict compares the HARD splits to the RANDOM split:
                  generalize a factor value to new / structured-out contexts.
   * MIXED — holds for one hard split but breaks for the other (mapped explicitly).
 
-grail/ is NEVER touched and does NO backprop. The linear readouts are MEASUREMENT probes only
+cerebrum/ is NEVER touched and does NO backprop. The linear readouts are MEASUREMENT probes only
 (shared with run_factorization.py). The latent was learned entirely by the LOCAL rule.
 """
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root on path
 import numpy as np
 
-from grail.config import GRAILConfig
-from grail.pc_core import PCAreas
+from cerebrum.config import CerebrumConfig
+from cerebrum.pc_core import PCAreas
 from benchmarks.stats import mean_ci, fmt_ci
 from benchmarks.run_factorization import ncm_decode_acc, logistic_decode_acc
 from benchmarks.run_factorization_multi import (
@@ -228,12 +228,12 @@ def make_row_split(cards, target_factor=0, target_value=0, n_held_in_row=None,
 
 
 # ==========================================================================================
-# ONE PROBE: train GRAIL by the LOCAL rule, settle latents, decode the TARGET factor (held-out)
+# ONE PROBE: train CEREBRUM by the LOCAL rule, settle latents, decode the TARGET factor (held-out)
 # ==========================================================================================
 
 def split_probe(task, train, held, dims, passes=60, seed=0, target_factor=0,
                 align_feedback=False, lam_kp=1e-2, decoder="ncm"):
-    """Train a bare GRAIL hierarchy by the LOCAL rule on `train`, then linear-probe the TARGET
+    """Train a bare CEREBRUM hierarchy by the LOCAL rule on `train`, then linear-probe the TARGET
     factor's held-out decode off the TRAINED latent, an UNTRAINED (random-init, no-plasticity)
     latent, the RAW obs, and a RANDOM-PROJECTION of the obs. Returns a flat dict with
     {cond}_target for each condition plus the per-other-factor decode (for the table) + counts.
@@ -244,7 +244,7 @@ def split_probe(task, train, held, dims, passes=60, seed=0, target_factor=0,
     ytr = np.array([list(c) for c in train])   # (n_train, K)
     yte = np.array([list(c) for c in held])    # (n_held,  K)
 
-    cfg = GRAILConfig(dims=dims, n_settle=12, seed=seed,
+    cfg = CerebrumConfig(dims=dims, n_settle=12, seed=seed,
                       align_feedback=align_feedback, lam_kp=lam_kp)
     trained = _train_pc_multi(task, train, cfg, passes=passes)
     untrained = PCAreas(cfg)  # same architecture / init, NO plasticity (learning control)
@@ -539,7 +539,7 @@ if __name__ == "__main__":
     print("C2-HardSplits — does the LOCAL rule generalize SYSTEMATICALLY (decode holds under hard")
     print("hold-out structure) or only INTERPOLATE (holds for random split, breaks for systematic)?")
     print("=" * 100)
-    print("Linear readouts are MEASUREMENT probes only (shared with run_factorization.py); GRAIL")
+    print("Linear readouts are MEASUREMENT probes only (shared with run_factorization.py); CEREBRUM")
     print("itself does NO backprop and is unmodified. The latent was learned by the LOCAL rule.")
     print()
     run_grid()

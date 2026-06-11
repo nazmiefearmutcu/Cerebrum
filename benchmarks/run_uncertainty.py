@@ -1,8 +1,8 @@
-"""Uncertainty quantification for GRAIL via Pillar-4 (Langevin) sample disagreement.
+"""Uncertainty quantification for CEREBRUM via Pillar-4 (Langevin) sample disagreement.
 
 A vanilla transformer gives ONE deterministic forward pass: it has no native notion of
 "how sure am I?" beyond a softmax temperature that is not calibrated by construction.
-GRAIL settles its predictive-coding hierarchy by a NOISY Langevin SDE (pc_core.settle_step:
+CEREBRUM settles its predictive-coding hierarchy by a NOISY Langevin SDE (pc_core.settle_step:
 `noise = rng.normal(scale=sqrt(2*T*dt/tau_x))`, with T >= T_floor > 0 by Pillar 4, which
 forbids MAP collapse). That means we can draw MANY stochastic settles for the SAME query and
 obtain a genuine SAMPLE DISTRIBUTION over the model's reconstruction. The honest scientific
@@ -30,10 +30,10 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root on path
 import numpy as np
-from grail.config import GRAILConfig
-from grail.network import GRAILCore
-from grail.rng import SeededRNG
-from grail.types import Exogenous
+from cerebrum.config import CerebrumConfig
+from cerebrum.network import CerebrumCore
+from cerebrum.rng import SeededRNG
+from cerebrum.types import Exogenous
 from benchmarks.tasks.gridworld import make_episode
 from benchmarks.tasks.graph_completion import _goto_cell
 from benchmarks.stats import fmt_ci, mean_ci
@@ -46,8 +46,8 @@ def _softmax(v):
 
 
 def train_episode(ep, cfg):
-    """Walk the episode and bind/settle at each cell (same path as graph_completion.run_grail_episode)."""
-    net = GRAILCore(cfg)
+    """Walk the episode and bind/settle at each cell (same path as graph_completion.run_cerebrum_episode)."""
+    net = CerebrumCore(cfg)
     cell = (0, 0)
     _goto_cell(net, cell)
     net.observe_and_learn(ep.gw.obs_at(cell), reward=1.0)
@@ -151,11 +151,11 @@ def calibration_for_seed(ep, net, cfg, S, n_settle, T):
 
 def run_sweep(seeds=(0, 1, 2, 3, 4, 5, 6, 7), K=14, h=4, w=4, vocab=5,
               S=21, n_settle=40, T=None):
-    """Train one GRAIL-grid episode per seed; collect calibration metrics. T=None -> native T_floor."""
+    """Train one CEREBRUM-grid episode per seed; collect calibration metrics. T=None -> native T_floor."""
     per_seed = []
     for se in seeds:
         ep = make_episode(h=h, w=w, vocab=vocab, K=K, seed=se)
-        cfg = GRAILConfig(dims=(vocab, 8, 8), grid_n_modules=8, n_settle=10, seed=se)
+        cfg = CerebrumConfig(dims=(vocab, 8, 8), grid_n_modules=8, n_settle=10, seed=se)
         TT = cfg.T_floor if T is None else T
         net = train_episode(ep, cfg)
         per_seed.append(calibration_for_seed(ep, net, cfg, S=S, n_settle=n_settle, T=TT))
@@ -171,7 +171,7 @@ if __name__ == "__main__":
     S = 21
     res = run_sweep(seeds=SEEDS, S=S)
 
-    print("GRAIL uncertainty quantification via Pillar-4 (Langevin) sample disagreement")
+    print("CEREBRUM uncertainty quantification via Pillar-4 (Langevin) sample disagreement")
     print(f"Task-1 graph-completion; {len(SEEDS)} seeds, S={S} settles/query, T=T_floor (native noise floor).")
     print("Uncertainty = disagreement (1 - mode fraction) among the S stochastic-settle argmaxes.")
     print("All scored queries have an OBSERVED target (no never-seen-cell artifact).")

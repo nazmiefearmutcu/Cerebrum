@@ -1,6 +1,6 @@
 """Pillar-4 ablation: does the stochastic settling noise (T_floor > 0) actually BUY anything?
 
-GRAIL's Pillar 4 claims the Langevin settling noise term  noise = sqrt(2 tau_x T dt) dW  in
+CEREBRUM's Pillar 4 claims the Langevin settling noise term  noise = sqrt(2 tau_x T dt) dW  in
 pc_core.settle_step is LOAD-BEARING: a noise floor T_floor > 0 "forbids MAP collapse" and is
 "the brain's Monte Carlo". This script tests that claim HONESTLY by sweeping the SETTLING
 temperature T_floor over a range that INCLUDES 0.0 (the deterministic / MAP limit) and measuring
@@ -10,7 +10,7 @@ the effect on all three core axes with >= 5 seeds and 95% CIs:
   (2) Stage-2 : routing accuracy AND win-entropy / load-balance (dead-expert / hog collapse?).
   (3) Stage-3 : first-task forgetA (continual retention; lower is better).
 
-T_floor is injected ONLY through the existing GRAILConfig(T_floor=...).  Every OTHER knob is held
+T_floor is injected ONLY through the existing CerebrumConfig(T_floor=...).  Every OTHER knob is held
 at each task's existing working value (copied verbatim from benchmarks/run_task1.py,
 benchmarks/tasks/binding.py defaults, and benchmarks/tasks/continual._make_cfg). The deterministic
 arm is T_floor = 0.0.
@@ -25,7 +25,7 @@ WHERE THE NOISE ENTERS EACH AXIS (so the verdict has a mechanism):
   - Stage-3 trains with T=T_floor but MEASURES at T=0 (continual.py design), so forgetA reflects
     how noisy settling shaped the learned WEIGHTS, not eval-time jitter.
 
-This file does NOT modify grail/. It re-implements each task's run loop locally so T_floor can be
+This file does NOT modify cerebrum/. It re-implements each task's run loop locally so T_floor can be
 threaded through cfg while keeping all other knobs identical to the shipped tasks.
 Run:  python3 benchmarks/run_pillar4_ablation.py
 """
@@ -34,17 +34,17 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 from dataclasses import replace
 import numpy as np
 
-from grail.config import GRAILConfig
-from grail.network import GRAILCore
-from grail.network2 import GRAILWorkspaceNet
-from grail.pc_core import PCAreas
-from grail.plasticity import Eligibility, weight_update, precision_update, feedback_update
-from grail.metaplasticity import MetaplasticFuse
-from grail.neuromod import Neuromodulator
-from grail.rng import SeededRNG
+from cerebrum.config import CerebrumConfig
+from cerebrum.network import CerebrumCore
+from cerebrum.network2 import CerebrumWorkspaceNet
+from cerebrum.pc_core import PCAreas
+from cerebrum.plasticity import Eligibility, weight_update, precision_update, feedback_update
+from cerebrum.metaplasticity import MetaplasticFuse
+from cerebrum.neuromod import Neuromodulator
+from cerebrum.rng import SeededRNG
 
 from benchmarks.tasks.gridworld import make_episode
-from benchmarks.tasks.graph_completion import run_grail_episode
+from benchmarks.tasks.graph_completion import run_cerebrum_episode
 import benchmarks.tasks.continual as continual
 from benchmarks.stats import mean_ci, fmt_ci
 
@@ -58,8 +58,8 @@ SEEDS = (0, 1, 2, 3, 4)
 # ----------------------------------------------------------------------------------------------
 def task1_acc(T_floor, K, seed, h=4, w=4, vocab=5):
     ep = make_episode(h=h, w=w, vocab=vocab, K=K, seed=seed)
-    cfg = GRAILConfig(dims=(vocab, 8, 8), grid_n_modules=8, n_settle=10, seed=seed, T_floor=T_floor)
-    return run_grail_episode(GRAILCore(cfg), ep)
+    cfg = CerebrumConfig(dims=(vocab, 8, 8), grid_n_modules=8, n_settle=10, seed=seed, T_floor=T_floor)
+    return run_cerebrum_episode(CerebrumCore(cfg), ep)
 
 
 # ----------------------------------------------------------------------------------------------
@@ -69,9 +69,9 @@ def task1_acc(T_floor, K, seed, h=4, w=4, vocab=5):
 def stage2_routing(T_floor, n_modules, trials, seed,
                    explore_reward=2.0, reward_scale=5.0, gate_temp=0.1, lam_g=0.05):
     rng = np.random.default_rng(seed)
-    cfg = GRAILConfig(dims=(n_modules, n_modules), n_settle=6, seed=seed,
+    cfg = CerebrumConfig(dims=(n_modules, n_modules), n_settle=6, seed=seed,
                       lam_g=lam_g, gate_temp=gate_temp, T_floor=T_floor)
-    net = GRAILWorkspaceNet(n_modules, 1, slice_dim=n_modules, cfg=cfg)
+    net = CerebrumWorkspaceNet(n_modules, 1, slice_dim=n_modules, cfg=cfg)
     wins = np.zeros(n_modules); correct = 0
     for _ in range(trials):
         target = int(rng.integers(0, n_modules))
@@ -246,7 +246,7 @@ def main():
     # ---- Axis 3 -------------------------------------------------------------------------------
     print("\n[AXIS 3] Stage-3 first-task forgetA  (lower is better; train at T_floor, eval at T=0)")
     fz, pl = run_axis3()
-    for label, by_T in (("GRAIL-fuse", fz), ("always-plastic", pl)):
+    for label, by_T in (("CEREBRUM-fuse", fz), ("always-plastic", pl)):
         print(f"  -- {label} --")
         print("        metric  " + "".join(f"{('T='+str(T)):>19}" for T in T_GRID))
         for metric in ("forgetA", "errA_afterA"):

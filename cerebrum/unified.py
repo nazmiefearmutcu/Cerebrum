@@ -1,6 +1,6 @@
-"""I5-Unified — ONE coherent network exercising all FIVE GRAIL pillars together.
+"""I5-Unified — ONE coherent network exercising all FIVE CEREBRUM pillars together.
 
-`GRAILNet` fuses the three staged prototypes into a single `step(obs_slices, action, reward)`:
+`CerebrumNet` fuses the three staged prototypes into a single `step(obs_slices, action, reward)`:
 
   Stage-1  Predictive coding + structured grid prior
       - a shared grid HEAD path-integrates on the EXOGENOUS `action` and produces a top-down
@@ -38,12 +38,12 @@ from .invariants import assert_scalar_M
 from .types import Exogenous
 
 
-class GRAILNet:
+class CerebrumNet:
     def __init__(self, n_modules, k_slots, slice_dim, cfg):
         self.cfg = cfg
         self.M_ = n_modules
         self.k = k_slots
-        # each module is a PCAreas whose bottom area is its input slice (mirrors GRAILWorkspaceNet)
+        # each module is a PCAreas whose bottom area is its input slice (mirrors CerebrumWorkspaceNet)
         mdims = (slice_dim,) + tuple(cfg.dims[1:]) if len(cfg.dims) > 1 else (slice_dim, slice_dim)
         self.modules = [PCAreas(replace(cfg, dims=mdims, seed=cfg.seed + i)) for i in range(n_modules)]
         self.content_dim = mdims[-1]
@@ -68,7 +68,7 @@ class GRAILNet:
     # ------------------------------------------------------------------ grid prior
     def _top_pred_from_grid(self, obs_dim):
         """Structural top-down prediction: frozen decode of the (path-integrated) grid completion,
-        projected into the module top-area dimension. Same pattern as GRAILCore."""
+        projected into the module top-area dimension. Same pattern as CerebrumCore."""
         rec = self.grid.complete() if self.grid.store is not None else np.zeros(obs_dim)
         if self._U is None:
             rng = np.random.default_rng(self.cfg.seed + 7)

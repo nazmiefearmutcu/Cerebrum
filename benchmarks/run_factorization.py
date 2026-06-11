@@ -22,7 +22,7 @@ THE PRINCIPLED TEST (this file)
 Instead of an impossible f1->f2 completion, we test the right thing: is the latent FACTORIZED in
 a way that GENERALIZES COMPOSITIONALLY? We:
 
-  1. Train a bare GRAIL PCAreas hierarchy by the EXISTING local four-factor plasticity loop
+  1. Train a bare CEREBRUM PCAreas hierarchy by the EXISTING local four-factor plasticity loop
      (benchmarks.tasks.compositional._train_pc) on a SUBSET of (f1,f2) combos.
   2. For every combo, settle the hierarchy NOISE-FREE (T=0) with the full obs clamped and read
      the top latent x[top].
@@ -32,15 +32,15 @@ a way that GENERALIZES COMPOSITIONALLY? We:
      generalization: can each factor be read off the latent for combinations never trained?
 
 The readout is purely a MEASUREMENT PROBE (like the existing backprop_mlp COMPARATOR in
-compositional.py). It is NOT part of GRAIL and uses no GRAIL machinery — the representation it
+compositional.py). It is NOT part of CEREBRUM and uses no CEREBRUM machinery — the representation it
 reads was learned entirely by the LOCAL rule. (Logistic GD lives only in this benchmark file,
-clearly labelled; grail/ is never touched and never does backprop.)
+clearly labelled; cerebrum/ is never touched and never does backprop.)
 
 CONTROLS — so a positive result is not trivial
 ----------------------------------------------
 The observation is a CONCAT of the two parts, so the factors are linearly present in the raw obs
 already; any information-preserving map keeps them. To make this a fair test of the LEARNED
-latent and not of the trivially-factorable input, we report THREE controls alongside GRAIL's
+latent and not of the trivially-factorable input, we report THREE controls alongside CEREBRUM's
 trained latent:
 
   * RAW obs            — decode factors directly from the raw observation (partly trivial: obs is
@@ -48,9 +48,9 @@ trained latent:
   * RANDOM-PROJECTION  — decode from a fixed random linear projection of the obs to the SAME dim
                          as the latent. A random linear map preserves linear factor structure
                          (Johnson-Lindenstrauss), so this is the "no learning, just a generic
-                         linear map of the same size" floor. If GRAIL's latent does no better
+                         linear map of the same size" floor. If CEREBRUM's latent does no better
                          than this, the decoding is NOT evidence of LEARNED factorization.
-  * UNTRAINED latent   — settle the SAME GRAIL architecture with its RANDOM init and NO plasticity,
+  * UNTRAINED latent   — settle the SAME CEREBRUM architecture with its RANDOM init and NO plasticity,
                          then decode. The decisive learning control: any margin of TRAINED over
                          UNTRAINED is structure the LOCAL RULE actually built (vs the architecture's
                          inductive bias alone).
@@ -69,9 +69,9 @@ import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root on path
 import numpy as np
 
-from grail.config import GRAILConfig
-from grail.pc_core import PCAreas
-from grail.rng import SeededRNG
+from cerebrum.config import CerebrumConfig
+from cerebrum.pc_core import PCAreas
+from cerebrum.rng import SeededRNG
 from benchmarks.stats import mean_ci, fmt_ci
 from benchmarks.tasks.compositional import CompositionalTask, _train_pc
 
@@ -125,7 +125,7 @@ def settle_top_latent(net, obs, steps, seed=_EVAL_SEED):
 
 
 # ------------------------------------------------------------------------------------------
-# LINEAR-PROBE MEASUREMENT decoders (NOT part of GRAIL — pure benchmark-side measurement,
+# LINEAR-PROBE MEASUREMENT decoders (NOT part of CEREBRUM — pure benchmark-side measurement,
 # exactly like the existing backprop_mlp COMPARATOR in compositional.py)
 # ------------------------------------------------------------------------------------------
 
@@ -151,7 +151,7 @@ def ncm_decode_acc(Xtr, ytr, Xte, yte, n_cls):
 def logistic_decode_acc(Xtr, ytr, Xte, yte, n_cls, epochs=400, lr=0.5, l2=1e-3, seed=0):
     """Multinomial logistic (softmax) linear probe trained by plain gradient descent on the SEEN
     latents, evaluated on HELD-OUT latents. This GD is a MEASUREMENT PROBE only — it is NOT part
-    of GRAIL (GRAIL never does backprop), exactly analogous to the backprop_mlp COMPARATOR that
+    of CEREBRUM (CEREBRUM never does backprop), exactly analogous to the backprop_mlp COMPARATOR that
     already lives in benchmarks/tasks/compositional.py. It reads, it does not teach."""
     if Xte.shape[0] == 0:
         return float("nan")
@@ -174,12 +174,12 @@ def logistic_decode_acc(Xtr, ytr, Xte, yte, n_cls, epochs=400, lr=0.5, l2=1e-3, 
 
 
 # ------------------------------------------------------------------------------------------
-# One probe = train GRAIL, settle latents for all four conditions, decode f1 & f2 (held-out)
+# One probe = train CEREBRUM, settle latents for all four conditions, decode f1 & f2 (held-out)
 # ------------------------------------------------------------------------------------------
 
 def factorization_probe(task, train, held, dims, passes=60, seed=0,
                         align_feedback=False, lam_kp=1e-2, decoder="both"):
-    """Train a bare GRAIL hierarchy by the LOCAL rule on `train`, then linear-probe f1/f2 decoding
+    """Train a bare CEREBRUM hierarchy by the LOCAL rule on `train`, then linear-probe f1/f2 decoding
     on `held` from: the TRAINED latent, an UNTRAINED (random-init, no-plasticity) latent of the
     same architecture, the RAW obs, and a RANDOM-PROJECTION of the obs to the latent dim.
 
@@ -192,8 +192,8 @@ def factorization_probe(task, train, held, dims, passes=60, seed=0,
     f1tr = np.array([f for f, _ in train]); f2tr = np.array([f for _, f in train])
     f1te = np.array([f for f, _ in held]); f2te = np.array([f for _, f in held])
 
-    # ---- train GRAIL by the LOCAL four-factor rule (no backprop) -------------------------
-    cfg = GRAILConfig(dims=dims, n_settle=12, seed=seed,
+    # ---- train CEREBRUM by the LOCAL four-factor rule (no backprop) -------------------------
+    cfg = CerebrumConfig(dims=dims, n_settle=12, seed=seed,
                       align_feedback=align_feedback, lam_kp=lam_kp)
     trained = _train_pc(task, cfg, passes=passes)
     untrained = PCAreas(cfg)  # same architecture / init, NO plasticity (learning control)
@@ -375,7 +375,7 @@ if __name__ == "__main__":
     print("generalizing FACTORED latent? (corrects the earlier degenerate f1->f2 completion null)")
     print("=" * 96)
     print("Linear readouts are MEASUREMENT probes only (like the existing backprop_mlp comparator);")
-    print("GRAIL itself does NO backprop and is unmodified. The latent was learned by the LOCAL rule.")
+    print("CEREBRUM itself does NO backprop and is unmodified. The latent was learned by the LOCAL rule.")
     print()
 
     base = run_sweep()

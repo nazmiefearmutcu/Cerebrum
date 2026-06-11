@@ -4,11 +4,11 @@ This pushes the metric few-shot graph-completion task PAST the existing 8x8 ceil
 (see benchmarks/run_scaling.py, which stopped at 8x8 vocab=10) to 12x12 and 16x16
 gridworlds with proportionally larger vocab, and asks ONE honest question:
 
-    Does GRAIL's grid-prior sample-efficiency advantage over flat-prior and
+    Does CEREBRUM's grid-prior sample-efficiency advantage over flat-prior and
     backprop-MLP HOLD, SHRINK, or BREAK as the graph grows?
 
 The mechanistic tension we are testing:
-  - GRAIL completes HELD-OUT edges by PATH INTEGRATION in a frozen grid code
+  - CEREBRUM completes HELD-OUT edges by PATH INTEGRATION in a frozen grid code
     (start + displacement -> target grid code -> content store -> obs). This is a
     structural prior: it does NOT need to have observed the (start,target) edge.
   - flat-prior has random per-cell codes and NO transition algebra, so it can only
@@ -18,15 +18,15 @@ The mechanistic tension we are testing:
     graph it sees a tiny, sparse supervision set.
 
   At a FIXED budget K, a bigger graph means each cell gets a SMALLER observed
-  fraction (coverage = |observed cells| / (h*w)). GRAIL's ABSOLUTE accuracy may
+  fraction (coverage = |observed cells| / (h*w)). CEREBRUM's ABSOLUTE accuracy may
   therefore fall as the graph grows (fewer cells have content bound, so fewer
   held-out targets are even decodable). That is expected and we report it honestly.
   The MEANINGFUL question is the MARGIN over the baselines under the SAME budget.
 
-BAN COMPLIANCE: GRAIL path routes only through grail/ primitives; the grid is
-driven by Exogenous moves (graph_completion.run_grail_episode); the only backprop
+BAN COMPLIANCE: CEREBRUM path routes only through cerebrum/ primitives; the grid is
+driven by Exogenous moves (graph_completion.run_cerebrum_episode); the only backprop
 is the pre-existing benchmarks/baselines/backprop_mlp.py comparator. We do NOT
-modify grail/. The grid head keeps grid_n_modules=8 (same prior as the 8x8 probe);
+modify cerebrum/. The grid head keeps grid_n_modules=8 (same prior as the 8x8 probe);
 its largest module period (~47 cells) still spans a 16x16 grid, so this is the
 SAME structural prior, just a bigger graph — not a retuned advantage.
 """
@@ -37,12 +37,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 
 import numpy as np
 
-from grail.config import GRAILConfig
-from grail.network import GRAILCore
+from cerebrum.config import CerebrumConfig
+from cerebrum.network import CerebrumCore
 
 from benchmarks.stats import mean_ci, fmt_ci
 from benchmarks.tasks.gridworld import make_episode
-from benchmarks.tasks.graph_completion import run_grail_episode
+from benchmarks.tasks.graph_completion import run_cerebrum_episode
 from benchmarks.baselines.flat_prior import run_flat_episode
 from benchmarks.baselines.backprop_mlp import run_mlp_episode
 
@@ -63,10 +63,10 @@ def _stat(raw):
 
 def probe_largegraph(sizes=DEFAULT_SIZES, Ks=DEFAULT_KS, seeds=DEFAULT_SEEDS,
                      n_settle=10, mlp_epochs=120):
-    """For each (h,w,vocab) size and each K, score GRAIL-grid vs flat vs backprop-MLP.
+    """For each (h,w,vocab) size and each K, score CEREBRUM-grid vs flat vs backprop-MLP.
 
     Returns out[(h,w,vocab)][K] = {
-        grail|flat|mlp: {mean,ci,raw},
+        cerebrum|flat|mlp: {mean,ci,raw},
         'chance':   1/vocab,
         'coverage': mean over seeds of |observed cells| / (h*w),  # how much of the
                     #   graph the K-step walk actually visits (fixed budget -> shrinks
@@ -88,13 +88,13 @@ def probe_largegraph(sizes=DEFAULT_SIZES, Ks=DEFAULT_KS, seeds=DEFAULT_SEEDS,
                 # latent areas scale modestly with vocab so the decode has capacity;
                 # grid head identical to the 8x8 probe (same structural prior).
                 lat = max(8, 2 * vocab)
-                cfg = GRAILConfig(dims=(vocab, lat, lat), grid_n_modules=8,
+                cfg = CerebrumConfig(dims=(vocab, lat, lat), grid_n_modules=8,
                                   n_settle=n_settle, seed=s)
-                g.append(run_grail_episode(GRAILCore(cfg), ep))
+                g.append(run_cerebrum_episode(CerebrumCore(cfg), ep))
                 f.append(run_flat_episode(ep))
                 m.append(run_mlp_episode(ep, epochs=mlp_epochs, seed=s))
             out[(h, w, vocab)][K] = {
-                "grail": _stat(g), "flat": _stat(f), "mlp": _stat(m),
+                "cerebrum": _stat(g), "flat": _stat(f), "mlp": _stat(m),
                 "chance": 1.0 / vocab,
                 "coverage": float(np.mean(covs)),
                 "n_queries": float(np.mean(nqs)),
@@ -103,25 +103,25 @@ def probe_largegraph(sizes=DEFAULT_SIZES, Ks=DEFAULT_KS, seeds=DEFAULT_SEEDS,
 
 
 def verdict_largegraph(res):
-    """HONEST per-size verdict: does GRAIL-grid's advantage over the BETTER of
+    """HONEST per-size verdict: does CEREBRUM-grid's advantage over the BETTER of
     {flat, backprop-MLP} HOLD (CI-separated at every K), SHRINK (CI-separated at
     some K only), or BREAK (no CI-separated advantage) as the graph grows?
 
-    We report the MARGIN (grail_mean - best_baseline_mean) at the first and last K,
+    We report the MARGIN (cerebrum_mean - best_baseline_mean) at the first and last K,
     and we explicitly surface the coverage fraction so an absolute-accuracy drop is
     not mistaken for an advantage loss."""
     lines = []
     sizes = sorted(res, key=lambda s: (s[0] * s[1], s[2]))
     for size in sizes:
         h, w, vocab = size
-        margins = []  # (K, grail_mean - best_baseline_mean, ci_separated_flag)
+        margins = []  # (K, cerebrum_mean - best_baseline_mean, ci_separated_flag)
         for K in sorted(res[size]):
             row = res[size][K]
-            gm, gci = row["grail"]["mean"], row["grail"]["ci"]
+            gm, gci = row["cerebrum"]["mean"], row["cerebrum"]["ci"]
             bm = max(row["flat"]["mean"], row["mlp"]["mean"])
             bci = (row["flat"]["ci"] if row["flat"]["mean"] >= row["mlp"]["mean"]
                    else row["mlp"]["ci"])
-            sep = (gm - gci) > (bm + bci)        # GRAIL CI strictly above best baseline CI
+            sep = (gm - gci) > (bm + bci)        # CEREBRUM CI strictly above best baseline CI
             margins.append((K, gm - bm, sep))
         any_win = any(sep for _, _, sep in margins)
         all_win = all(sep for _, _, sep in margins)
@@ -150,11 +150,11 @@ def main():
     Ks = DEFAULT_KS
     seeds = DEFAULT_SEEDS
     print("=" * 86)
-    print("GRAIL LARGE-GRAPH SCALING PROBE — Task-1 few-shot graph-completion (HONEST)")
+    print("CEREBRUM LARGE-GRAPH SCALING PROBE — Task-1 few-shot graph-completion (HONEST)")
     print("Pushing past 8x8 to 12x12 and 16x16 with proportionally larger vocab.")
     print("=" * 86)
     print(f"\n  seeds={list(seeds)}  Ks={list(Ks)}  (mean +/- 95% CI over {len(seeds)} seeds)")
-    print("  GRAIL-grid vs flat-prior vs backprop-MLP; chance = 1/vocab per row.\n")
+    print("  CEREBRUM-grid vs flat-prior vs backprop-MLP; chance = 1/vocab per row.\n")
 
     res = probe_largegraph(sizes=sizes, Ks=Ks, seeds=seeds)
 
@@ -164,18 +164,18 @@ def main():
         print(f"  gridworld {h}x{w}, vocab={vocab}  (chance={1.0/vocab:.3f}, "
               f"cells={h*w}, coverage at K={sorted(Ks)[0]}~{cov0:.2f})")
         print(f"    {'K':>4}  {'coverage':>9}  {'#queries':>9}  "
-              f"{'GRAIL-grid':>18}  {'flat-prior':>18}  {'backprop-MLP':>18}")
+              f"{'CEREBRUM-grid':>18}  {'flat-prior':>18}  {'backprop-MLP':>18}")
         for K in sorted(res[size]):
             row = res[size][K]
             print(f"    {K:>4}  {row['coverage']:>9.2f}  {row['n_queries']:>9.1f}  "
-                  f"{_fmt(row['grail']):>18}  {_fmt(row['flat']):>18}  {_fmt(row['mlp']):>18}")
+                  f"{_fmt(row['cerebrum']):>18}  {_fmt(row['flat']):>18}  {_fmt(row['mlp']):>18}")
         print()
 
     print(verdict_largegraph(res))
 
     print("\n" + "=" * 86)
     print("HONEST NOTE: at FIXED K a bigger graph = SMALLER observed coverage fraction,")
-    print("so GRAIL's ABSOLUTE completion accuracy is expected to fall as h*w grows.")
+    print("so CEREBRUM's ABSOLUTE completion accuracy is expected to fall as h*w grows.")
     print("The verdict above is about the MARGIN over flat/backprop, not absolute level.")
     print("=" * 86)
 

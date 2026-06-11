@@ -17,7 +17,7 @@ engineered to make depth win.
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root on path
 import numpy as np
-from grail.config import GRAILConfig
+from cerebrum.config import CerebrumConfig
 from benchmarks.stats import mean_ci, fmt_ci
 from benchmarks.tasks.compositional import (
     CompositionalTask, run_pc_completion, run_flat_memorizer, run_backprop_mlp,
@@ -42,7 +42,7 @@ def run_depth_sweep(depths=(2, 3, 4), width=24, A=4, B=4, part_dim=8,
         for s in seeds:
             task = tasks[s]
             dims = tuple([task.obs_dim] + [width] * (d - 1))
-            cfg = GRAILConfig(dims=dims, n_settle=12, seed=s)
+            cfg = CerebrumConfig(dims=dims, n_settle=12, seed=s)
             res = run_pc_completion(task, cfg, passes=passes)
             held.append(res["acc_heldout"]); trn.append(res["acc_train"])
             lat.append(res["lat_act"]); cnorm.append(res["comp_norm"])

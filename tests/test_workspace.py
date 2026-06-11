@@ -1,5 +1,5 @@
 import numpy as np, pytest
-from grail.workspace import Workspace
+from cerebrum.workspace import Workspace
 
 def test_one_hot_write_takes_winner_content():
     ws = Workspace(k_slots=2, content_dim=3)

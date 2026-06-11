@@ -11,7 +11,7 @@ diagnosis found the trained latent LINEARLY DECODES both f1 and f2 well above ch
 local rule DOES represent the factors.
 
 This probe is the principled, non-degenerate test: fit a LINEAR readout (a measurement probe,
-NOT part of GRAIL) on the trained latent x[top] over SEEN combos and evaluate factor-decoding
+NOT part of CEREBRUM) on the trained latent x[top] over SEEN combos and evaluate factor-decoding
 accuracy on HELD-OUT combos. That is genuine compositional generalization: can each factor be
 read off the latent for combinations never trained?
 
@@ -21,7 +21,7 @@ NOT assert "the latent factorizes" — that is the empirical question the run sc
 """
 import numpy as np
 
-from grail.config import GRAILConfig
+from cerebrum.config import CerebrumConfig
 from benchmarks.tasks.compositional import CompositionalTask
 from benchmarks.run_factorization import (
     make_split, settle_top_latent, ncm_decode_acc, logistic_decode_acc,
@@ -44,8 +44,8 @@ def test_make_split_disjoint_and_covers_every_factor_value():
 
 def test_settle_top_latent_shape_finite_and_deterministic():
     task = CompositionalTask(A=4, B=4, part_dim=6, seed=0)
-    from grail.pc_core import PCAreas
-    cfg = GRAILConfig(dims=(task.obs_dim, 16, 16), n_settle=8, seed=0)
+    from cerebrum.pc_core import PCAreas
+    cfg = CerebrumConfig(dims=(task.obs_dim, 16, 16), n_settle=8, seed=0)
     net = PCAreas(cfg)
     obs = task.embed(1, 2)
     z1 = settle_top_latent(net, obs, steps=10)
@@ -58,7 +58,7 @@ def test_settle_top_latent_shape_finite_and_deterministic():
 
 def test_ncm_and_logistic_decoders_recover_a_linearly_separable_factor():
     # build a trivially linearly-separable 2-class problem; both probes must score perfectly,
-    # and never below chance. (sanity on the MEASUREMENT probes themselves, not on GRAIL.)
+    # and never below chance. (sanity on the MEASUREMENT probes themselves, not on CEREBRUM.)
     rng = np.random.default_rng(0)
     n_cls = 3
     Xtr = np.concatenate([np.full((6, 4), c) + 0.01 * rng.standard_normal((6, 4))

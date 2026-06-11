@@ -1,10 +1,10 @@
 import numpy as np
-from grail.config import GRAILConfig
-from grail.pc_core import PCAreas
-from grail.nonlinear import g_act
+from cerebrum.config import CerebrumConfig
+from cerebrum.pc_core import PCAreas
+from cerebrum.nonlinear import g_act
 
 def make():
-    c = GRAILConfig(dims=(4,3,2), seed=0)
+    c = CerebrumConfig(dims=(4,3,2), seed=0)
     return PCAreas(c), c
 
 def test_shapes():
@@ -40,7 +40,7 @@ def test_balance_grid_precision_off_is_identity():
 
 def test_balance_grid_precision_on_downscales_dominating_pred():
     # flag ON: a huge top_pred is scaled DOWN to the top-area bottom-up signal scale; a small one isn't
-    c = GRAILConfig(dims=(4, 3, 2), seed=0, balance_grid_precision=True)
+    c = CerebrumConfig(dims=(4, 3, 2), seed=0, balance_grid_precision=True)
     pc = PCAreas(c)
     pc.x[0][:] = np.array([0.1, 0.2, -0.1, 0.3])
     pc.x[1][:] = np.array([0.2, -0.1, 0.05])

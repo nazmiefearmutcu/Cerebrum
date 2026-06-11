@@ -16,15 +16,15 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from benchmarks.run_pillar4_ablation import task1_acc, stage2_routing, stage3_continual
-from grail.pc_core import PCAreas
-from grail.config import GRAILConfig
-from grail.rng import SeededRNG
+from cerebrum.pc_core import PCAreas
+from cerebrum.config import CerebrumConfig
+from cerebrum.rng import SeededRNG
 
 
 def test_settle_noise_scale_tracks_T_floor():
     """The Langevin term sqrt(2 T dt/tau_x) dW must be ZERO at T=0 and NON-zero at T>0,
     holding the rng stream fixed. This is the mechanism the ablation toggles."""
-    cfg = GRAILConfig(dims=(4, 4))
+    cfg = CerebrumConfig(dims=(4, 4))
     obs = np.ones(4)
 
     def settled_top(T):

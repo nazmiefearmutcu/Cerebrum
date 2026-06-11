@@ -29,7 +29,7 @@ def test_eval_is_noise_free_deterministic():
 
 
 def test_fuse_lower_every_seed():
-    """Per-seed guarantee: GRAIL-fuse forgetA < always-plastic forgetA on EVERY seed."""
+    """Per-seed guarantee: CEREBRUM-fuse forgetA < always-plastic forgetA on EVERY seed."""
     fuse = _forgetA(True)
     plastic = _forgetA(False)
     for s, (f, p) in zip(SEEDS, zip(fuse, plastic)):

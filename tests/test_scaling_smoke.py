@@ -19,7 +19,7 @@ def test_task1_scaling_produces_finite_numbers():
     res = probe_task1_scaling(sizes=((4, 4, 5),), Ks=(5,), seeds=(0, 1), mlp_epochs=20)
     assert (4, 4, 5) in res
     row = res[(4, 4, 5)][5]
-    for method in ("grail", "flat", "mlp"):
+    for method in ("cerebrum", "flat", "mlp"):
         assert _finite(row[method]["mean"])
         assert _finite(row[method]["ci"])
         assert row[method]["ci"] >= 0.0
@@ -49,7 +49,7 @@ def test_depth_scaling_produces_finite_numbers():
     res = probe_depth_scaling(depths=(2, 3), Ks=(5,), seeds=(0, 1), h=4, w=4, vocab=5)
     for depth in (2, 3):
         assert depth in res
-        stat = res[depth][5]["grail"]
+        stat = res[depth][5]["cerebrum"]
         assert _finite(stat["mean"])
         assert _finite(stat["ci"])
         assert len(stat["raw"]) == 2

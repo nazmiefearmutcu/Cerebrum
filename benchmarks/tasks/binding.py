@@ -1,6 +1,6 @@
 import numpy as np
-from grail.config import GRAILConfig
-from grail.network2 import GRAILWorkspaceNet
+from cerebrum.config import CerebrumConfig
+from cerebrum.network2 import CerebrumWorkspaceNet
 
 def run_binding(n_modules=4, k_slots=1, trials=400, seed=0,
                 explore_reward=2.0, reward_scale=5.0, gate_temp=0.1, lam_g=0.05):
@@ -14,8 +14,8 @@ def run_binding(n_modules=4, k_slots=1, trials=400, seed=0,
     # lowers the selection temperature so the informative scalar bid dominates (still a stochastic
     # one-hot sample). Together these recover most of the near-perfect bid-salience routing the
     # high-temperature drifting gate was throwing away — without any query-key term.
-    cfg = GRAILConfig(dims=(n_modules, n_modules), n_settle=6, seed=seed, lam_g=lam_g, gate_temp=gate_temp)
-    net = GRAILWorkspaceNet(n_modules, k_slots, slice_dim=n_modules, cfg=cfg)
+    cfg = CerebrumConfig(dims=(n_modules, n_modules), n_settle=6, seed=seed, lam_g=lam_g, gate_temp=gate_temp)
+    net = CerebrumWorkspaceNet(n_modules, k_slots, slice_dim=n_modules, cfg=cfg)
     wins_per_module = np.zeros(n_modules); correct = 0
     for t in range(trials):
         target = int(rng.integers(0, n_modules))

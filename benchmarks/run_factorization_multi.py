@@ -27,8 +27,8 @@ genuinely harder test as K / cardinality grow: the model sees a vanishing fracti
 
 THE PROBE (identical logic to the 2-factor file, generalized to K)
 ------------------------------------------------------------------
-  1. Train a bare GRAIL PCAreas hierarchy by the EXISTING local four-factor plasticity loop on a
-     SUBSET of combos (a self-contained K-arity copy of compositional._train_pc's loop — grail/ is
+  1. Train a bare CEREBRUM PCAreas hierarchy by the EXISTING local four-factor plasticity loop on a
+     SUBSET of combos (a self-contained K-arity copy of compositional._train_pc's loop — cerebrum/ is
      never touched and never does backprop).
   2. For every combo, settle the hierarchy NOISE-FREE (T=0) with the full obs clamped, read the
      top latent x[top].
@@ -62,13 +62,13 @@ import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root on path
 import numpy as np
 
-from grail.config import GRAILConfig
-from grail.pc_core import PCAreas
-from grail.plasticity import (
+from cerebrum.config import CerebrumConfig
+from cerebrum.pc_core import PCAreas
+from cerebrum.plasticity import (
     Eligibility, weight_update, precision_update, feedback_update, feedback_update_kp,
 )
-from grail.neuromod import Neuromodulator
-from grail.rng import SeededRNG
+from cerebrum.neuromod import Neuromodulator
+from cerebrum.rng import SeededRNG
 from benchmarks.stats import mean_ci, fmt_ci
 from benchmarks.run_factorization import ncm_decode_acc, logistic_decode_acc
 
@@ -174,7 +174,7 @@ def settle_top_latent_multi(net, obs, steps, seed=_EVAL_SEED):
 
 # ------------------------------------------------------------------------------------------
 # K-arity local-plasticity training loop (self-contained copy of compositional._train_pc's
-# loop so it accepts variable-arity combos; grail/ untouched, no backprop, no W.T)
+# loop so it accepts variable-arity combos; cerebrum/ untouched, no backprop, no W.T)
 # ------------------------------------------------------------------------------------------
 
 def _train_pc_multi(task, train_combos, cfg, passes, eta_w_scale=0.6, tau_w=1.0):
@@ -225,12 +225,12 @@ def _train_pc_multi(task, train_combos, cfg, passes, eta_w_scale=0.6, tau_w=1.0)
 
 
 # ------------------------------------------------------------------------------------------
-# One probe: train GRAIL, settle latents for all conditions, decode every factor (held-out)
+# One probe: train CEREBRUM, settle latents for all conditions, decode every factor (held-out)
 # ------------------------------------------------------------------------------------------
 
 def multi_factorization_probe(task, train, held, dims, passes=60, seed=0,
                               align_feedback=False, lam_kp=1e-2, decoder="both"):
-    """Train a bare GRAIL hierarchy by the LOCAL rule on `train`, then linear-probe EACH factor's
+    """Train a bare CEREBRUM hierarchy by the LOCAL rule on `train`, then linear-probe EACH factor's
     held-out decode off: the TRAINED latent, an UNTRAINED (random-init, no-plasticity) latent, the
     RAW obs, and a RANDOM-PROJECTION of the obs to the latent dim. Returns a flat dict with one
     entry per factor per condition (e.g. trained_f0, trained_f1, ...) plus a `*_avg` per condition.
@@ -241,7 +241,7 @@ def multi_factorization_probe(task, train, held, dims, passes=60, seed=0,
     ytr = np.array([list(c) for c in train])   # (n_train, K)
     yte = np.array([list(c) for c in held])    # (n_held, K)
 
-    cfg = GRAILConfig(dims=dims, n_settle=12, seed=seed,
+    cfg = CerebrumConfig(dims=dims, n_settle=12, seed=seed,
                       align_feedback=align_feedback, lam_kp=lam_kp)
     trained = _train_pc_multi(task, train, cfg, passes=passes)
     untrained = PCAreas(cfg)  # same architecture / init, NO plasticity (learning control)
@@ -467,7 +467,7 @@ if __name__ == "__main__":
     print("C1-MoreFactors — does the LOCAL rule's compositionally-generalizing factored latent")
     print("HOLD as the factor space grows (more factors, larger cardinality), or BREAK?")
     print("=" * 100)
-    print("Linear readouts are MEASUREMENT probes only (shared with run_factorization.py); GRAIL")
+    print("Linear readouts are MEASUREMENT probes only (shared with run_factorization.py); CEREBRUM")
     print("itself does NO backprop and is unmodified. The latent was learned by the LOCAL rule.")
     print()
     run_grid()

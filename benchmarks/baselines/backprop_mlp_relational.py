@@ -1,7 +1,7 @@
 """Backprop-MLP comparator for the NON-METRIC relational task.
 
-COMPARATOR ONLY — uses gradient descent / backprop, which GRAIL never does. Kept in its own
-file so the GRAIL pathway and the existing baselines/backprop_mlp.py are untouched. A small
+COMPARATOR ONLY — uses gradient descent / backprop, which CEREBRUM never does. Kept in its own
+file so the CEREBRUM pathway and the existing baselines/backprop_mlp.py are untouched. A small
 2-layer tanh net is trained on the WALKED single relation-steps (few-shot supervision):
 features = one-hot(start_node) concatenated with the relation's frozen 2D label vector;
 target = obs at the successor node. At query time the 2-hop composition is applied node-wise

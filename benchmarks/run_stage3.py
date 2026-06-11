@@ -19,7 +19,7 @@ if __name__ == "__main__":
     n = len(seeds)
     print(f"Stage-3 catastrophic forgetting (mean +/- 95% CI over {n} seeds; lower forgetA is better)")
     print(f"{'method':<16}{'forgetA':>20}{'errC_afterC':>20}")
-    print(f"{'GRAIL-fuse':<16}{fmt_ci(col(fuse,'forgetA')):>20}{fmt_ci(col(fuse,'errC_afterC')):>20}"
+    print(f"{'CEREBRUM-fuse':<16}{fmt_ci(col(fuse,'forgetA')):>20}{fmt_ci(col(fuse,'errC_afterC')):>20}"
           f"   (cbar={mean_ci(col(fuse,'cbar'))[0]:.2f})")
     print(f"{'always-plastic':<16}{fmt_ci(col(plastic,'forgetA')):>20}{fmt_ci(col(plastic,'errC_afterC')):>20}")
     print(f"{'EWC-analog':<16}{fmt_ci(col(ewc,'forgetA')):>20}{fmt_ci(col(ewc,'errC_afterC')):>20}"

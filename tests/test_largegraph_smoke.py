@@ -20,7 +20,7 @@ def test_largegraph_produces_finite_numbers():
                            mlp_epochs=20, n_settle=6)
     assert (4, 4, 5) in res
     row = res[(4, 4, 5)][5]
-    for method in ("grail", "flat", "mlp"):
+    for method in ("cerebrum", "flat", "mlp"):
         assert _finite(row[method]["mean"])
         assert _finite(row[method]["ci"])
         assert row[method]["ci"] >= 0.0

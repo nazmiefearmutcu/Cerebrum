@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
-class GRAILConfig:
+class CerebrumConfig:
     # PC hierarchy
     dims: tuple = (16, 12, 8)        # area sizes, dims[0] = observation/lowest area
     # timescales (smaller = faster)
@@ -32,7 +32,7 @@ class GRAILConfig:
     # --- top-down precision balancing (OPT-IN; default OFF = behavior unchanged) ---
     balance_grid_precision: bool = False
                                      # if True, the EXTERNAL top-down prediction at the TOP area
-                                     # (the grid HEAD's structural prediction in GRAILNet/GRAILCore)
+                                     # (the grid HEAD's structural prediction in CerebrumNet/CerebrumCore)
                                      # is gain-normalized to the bottom-up activity scale of that
                                      # area BEFORE it enters the top-area error. In predictive coding
                                      # the relative pull of a top-down prediction is set by PRECISION;

@@ -8,7 +8,7 @@ from .counters import Counters
 from .rng import SeededRNG
 from .invariants import assert_scalar_M
 
-class GRAILWorkspaceNet:
+class CerebrumWorkspaceNet:
     """Stage-2 cortical workspace network: M modules compete via a stochastic gate for k slots;
     winners' content is broadcast back as top-down prediction. Routing EMERGES from the loop;
     there is no attention/mixer module."""

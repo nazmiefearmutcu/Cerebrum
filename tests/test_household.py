@@ -3,9 +3,9 @@ import pytest
 
 from benchmarks.tasks.household import HouseholdEnvironment, ROOM_COORDS, COOR_TO_ROOM, ACTION_DISPLACEMENTS, ROOM_NAMES
 from benchmarks.run_household import run_simulation, select_action, preprocess_obs
-from grail.config import GRAILConfig
-from grail.unified import GRAILNet
-from grail.types import Exogenous
+from cerebrum.config import CerebrumConfig
+from cerebrum.unified import CerebrumNet
+from cerebrum.types import Exogenous
 
 def test_room_transitions():
     """Verify room coordinates and transition boundaries (physical walls)."""
@@ -181,8 +181,8 @@ def test_active_inference_action_selection():
     env.agent_room = "Living Room"
     obs = env.get_obs()
     
-    cfg = GRAILConfig(dims=(5, 8, 8), grid_n_modules=4, seed=42)
-    net = GRAILNet(n_modules=4, k_slots=2, slice_dim=5, cfg=cfg)
+    cfg = CerebrumConfig(dims=(5, 8, 8), grid_n_modules=4, seed=42)
+    net = CerebrumNet(n_modules=4, k_slots=2, slice_dim=5, cfg=cfg)
     net.grid.pos = np.array(ROOM_COORDS["Living Room"], dtype=float)
     
     # Initialize the belief state to match the test conditions

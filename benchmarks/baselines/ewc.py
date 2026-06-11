@@ -1,11 +1,11 @@
 import numpy as np
-from grail.pc_core import PCAreas
-from grail.plasticity import Eligibility, weight_update, precision_update, feedback_update
-from grail.neuromod import Neuromodulator
-from grail.rng import SeededRNG
+from cerebrum.pc_core import PCAreas
+from cerebrum.plasticity import Eligibility, weight_update, precision_update, feedback_update
+from cerebrum.neuromod import Neuromodulator
+from cerebrum.rng import SeededRNG
 from benchmarks.tasks.continual import _prototypes, _err_on, _make_cfg
 
-# EWC-analog comparator on the SAME local substrate as the GRAIL fuse. The fuse's win is
+# EWC-analog comparator on the SAME local substrate as the CEREBRUM fuse. The fuse's win is
 # matching this WITHOUT EWC's two extra costs: (1) a Fisher-importance pass over A, and
 # (2) stored anchor weights W*. Same harness config knobs (_make_cfg) so the comparison is
 # apples-to-apples; the only difference is the consolidation mechanism (anchor+penalty vs
@@ -38,7 +38,7 @@ def run_continual_ewc(seed=0, dim=10, per_task=6, passes=100, lam=5.0):
 
     train(A, anchored=False)
     errA_afterA = _err_on(net, A, cfg, rng); errC_beforeC = _err_on(net, C, cfg, rng)
-    # EWC's extra cost: a Fisher-importance pass over A + stored anchors (GRAIL's fuse needs neither)
+    # EWC's extra cost: a Fisher-importance pass over A + stored anchors (CEREBRUM's fuse needs neither)
     for p in A:
         for _ in range(cfg.n_settle):
             net.settle_step(rng, T=cfg.T_floor, clamp_bottom=p)

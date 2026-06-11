@@ -1,14 +1,14 @@
-# GRAIL Stage 2 Implementation Plan — Gate + Workspace + Broadcast (the emergent mixer)
+# CEREBRUM Stage 2 Implementation Plan — Gate + Workspace + Broadcast (the emergent mixer)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development. Steps use `- [ ]` checkboxes.
 
 **Goal:** Build the stochastic basal-ganglia gate, the k≪n workspace, and the thalamo-cortical broadcast loop so that information routing between cortical modules EMERGES from `bid → one-hot write → broadcast → reshape-next-bid` — with NO attention matrix, NO delta rule, NO state-space operator — and prove the strict one-hot write is load-bearing (relaxing it to soft weights collapses to a gated-SSM).
 
-**Architecture:** Builds on Stage 0+1 (`grail/pc_core.py`, `grail/plasticity.py`, `grail/neuromod.py`, `grail/invariants.py`, `grail/counters.py`). Multiple `PCAreas` modules each settle on their own input slice; each emits a SCALAR own-error bid; a striatal Go/NoGo gate picks a stochastic strict-one-hot winner per workspace slot; winners write their content; the workspace broadcasts back as a top-down prediction (efference copy) that re-enters each module's settling. Gate weights learn by a LOCAL three-factor rule gated by the scalar neuromodulator M (no backprop through the discrete decision). Pure NumPy, no autograd.
+**Architecture:** Builds on Stage 0+1 (`cerebrum/pc_core.py`, `cerebrum/plasticity.py`, `cerebrum/neuromod.py`, `cerebrum/invariants.py`, `cerebrum/counters.py`). Multiple `PCAreas` modules each settle on their own input slice; each emits a SCALAR own-error bid; a striatal Go/NoGo gate picks a stochastic strict-one-hot winner per workspace slot; winners write their content; the workspace broadcasts back as a top-down prediction (efference copy) that re-enters each module's settling. Gate weights learn by a LOCAL three-factor rule gated by the scalar neuromodulator M (no backprop through the discrete decision). Pure NumPy, no autograd.
 
-**Tech Stack:** Python 3, numpy, pytest. No torch/jax/sklearn in `grail/`.
+**Tech Stack:** Python 3, numpy, pytest. No torch/jax/sklearn in `cerebrum/`.
 
-**Spec:** `docs/superpowers/specs/2026-06-08-grail-cortical-workspace-design.md` §3② (gate), §10 (soft-mixing ablation), §12 (invariants).
+**Spec:** `docs/superpowers/specs/2026-06-08-cerebrum-cortical-workspace-design.md` §3② (gate), §10 (soft-mixing ablation), §12 (invariants).
 
 **Bans (unchanged, enforced):** the bid `b_m` is a SCALAR own-error salience — NEVER a cross-module query-key dot product. Selection is a strict one-hot SAMPLE — NEVER argmax, NEVER soft-weighted aggregation (`W_j ← Σ_m P·read(m)` is FORBIDDEN, BAN-1). Gate learning uses only the scalar M + local eligibility — never a global error vector (BAN-2). No autograd.
 
@@ -17,10 +17,10 @@
 ## File Structure (additions)
 
 ```
-grail/
+cerebrum/
   gate.py        # BasalGangliaGate: scalar bids, striatal Go/NoGo, stochastic one-hot select, local 3-factor learn, dead-expert homeostasis
   workspace.py   # Workspace: k slots, strict one-hot write, broadcast (efference copy)
-  network2.py    # GRAILWorkspaceNet: M modules + gate + workspace + broadcast loop
+  network2.py    # CerebrumWorkspaceNet: M modules + gate + workspace + broadcast loop
 tests/
   test_gate.py  test_workspace.py  test_network2.py  test_stage2_smoke.py
 benchmarks/
@@ -33,12 +33,12 @@ benchmarks/
 
 ## Task 1: Workspace — strict one-hot write + broadcast
 
-**Files:** Create `grail/workspace.py`, `tests/test_workspace.py`
+**Files:** Create `cerebrum/workspace.py`, `tests/test_workspace.py`
 
 - [ ] **Step 1: Failing test** `tests/test_workspace.py`:
 ```python
 import numpy as np, pytest
-from grail.workspace import Workspace
+from cerebrum.workspace import Workspace
 
 def test_one_hot_write_takes_winner_content():
     ws = Workspace(k_slots=2, content_dim=3)
@@ -59,7 +59,7 @@ def test_broadcast_sums_slot_contents():
     assert np.allclose(ws.broadcast(), [1.,3.])
 ```
 
-- [ ] **Step 2: Run, fail. Step 3: Implement** `grail/workspace.py`:
+- [ ] **Step 2: Run, fail. Step 3: Implement** `cerebrum/workspace.py`:
 ```python
 import numpy as np
 from .invariants import assert_one_hot
@@ -86,36 +86,36 @@ class Workspace:
 
 ## Task 2: BasalGangliaGate — scalar bids + stochastic one-hot selection
 
-**Files:** Create `grail/gate.py`, `tests/test_gate.py`
+**Files:** Create `cerebrum/gate.py`, `tests/test_gate.py`
 
 Spec §3②. `b_m = π_m·E[‖ε_m‖²] + θ_m` (scalar, own-error only). `u_mj = G_mj b_m − Σ_{m'≠m} N_{m'j} b_{m'}`. `P(win_j=m)=softmax(u_mj/T_gate + Gumbel)`, `z` = one-hot sample (argmax over Gumbel-perturbed logits = exact softmax sample).
 
 - [ ] **Step 1: Failing test** `tests/test_gate.py`:
 ```python
 import numpy as np
-from grail.config import GRAILConfig
-from grail.gate import BasalGangliaGate
-from grail.rng import SeededRNG
-from grail.invariants import assert_one_hot
+from cerebrum.config import CerebrumConfig
+from cerebrum.gate import BasalGangliaGate
+from cerebrum.rng import SeededRNG
+from cerebrum.invariants import assert_one_hot
 
 def test_bid_is_scalar_own_error_plus_excitability():
-    g = BasalGangliaGate(n_modules=3, k_slots=2, cfg=GRAILConfig(), seed=0)
+    g = BasalGangliaGate(n_modules=3, k_slots=2, cfg=CerebrumConfig(), seed=0)
     bids = g.bid(err_sq=np.array([1.0,4.0,0.0]), pi=np.array([1.0,1.0,1.0]))
     assert bids.shape == (3,)
     assert bids[1] > bids[0] > bids[2]                  # higher own-error -> higher bid (no cross-module term)
 
 def test_selection_is_one_hot_per_slot():
-    g = BasalGangliaGate(n_modules=4, k_slots=2, cfg=GRAILConfig(), seed=1)
+    g = BasalGangliaGate(n_modules=4, k_slots=2, cfg=CerebrumConfig(), seed=1)
     z = g.select(bids=np.array([1.,2.,0.5,0.1]), rng=SeededRNG(0), T_gate=0.5)
     assert z.shape == (4,2); assert_one_hot(z, axis=0)
 
 def test_selection_is_stochastic_not_argmax():
-    g = BasalGangliaGate(n_modules=3, k_slots=1, cfg=GRAILConfig(), seed=2)
+    g = BasalGangliaGate(n_modules=3, k_slots=1, cfg=CerebrumConfig(), seed=2)
     wins = [int(np.argmax(g.select(np.array([1.0,0.9,0.8]), SeededRNG(s), T_gate=1.0)[:,0])) for s in range(50)]
     assert len(set(wins)) > 1                            # noise -> not always the top bidder (Pillar 4)
 ```
 
-- [ ] **Step 2: Fail. Step 3: Implement** `grail/gate.py`:
+- [ ] **Step 2: Fail. Step 3: Implement** `cerebrum/gate.py`:
 ```python
 import numpy as np
 from .invariants import assert_one_hot, assert_scalar_M
@@ -171,7 +171,7 @@ class BasalGangliaGate:
 - [ ] **Step 1: Failing tests (append):**
 ```python
 def test_local_learning_raises_win_prob_of_rewarded_module():
-    g = BasalGangliaGate(n_modules=3, k_slots=1, cfg=GRAILConfig(eta_w=0.5), seed=3)
+    g = BasalGangliaGate(n_modules=3, k_slots=1, cfg=CerebrumConfig(eta_w=0.5), seed=3)
     rng = SeededRNG(0)
     # repeatedly: module 1 wins and is rewarded (M>0) -> its Go weight should grow
     G1_before = g.G[1,0]
@@ -181,7 +181,7 @@ def test_local_learning_raises_win_prob_of_rewarded_module():
     assert g.G[1,0] > G1_before                          # rewarded winner's Go weight increases (scalar M)
 
 def test_homeostasis_raises_excitability_of_starved_module():
-    g = BasalGangliaGate(n_modules=3, k_slots=1, cfg=GRAILConfig(), seed=4)
+    g = BasalGangliaGate(n_modules=3, k_slots=1, cfg=CerebrumConfig(), seed=4)
     rng = SeededRNG(1)
     for _ in range(40):
         g.select(np.array([5.0, 0.0, 0.0]), rng, T_gate=0.2)  # module 0 hogs the slot
@@ -194,22 +194,22 @@ def test_homeostasis_raises_excitability_of_starved_module():
 
 ---
 
-## Task 4: GRAILWorkspaceNet — multi-module + gate + workspace + broadcast loop
+## Task 4: CerebrumWorkspaceNet — multi-module + gate + workspace + broadcast loop
 
-**Files:** Create `grail/network2.py`, `tests/test_network2.py`
+**Files:** Create `cerebrum/network2.py`, `tests/test_network2.py`
 
 M cortical modules, each a `PCAreas` on its own input slice; per step: settle each module with the current broadcast as top-down; compute each module's `err_sq = Σ‖ε‖²`; bid; select one-hot winners; write winners' top-area content to slots; broadcast back; learn (module plasticity + gate learning + homeostasis). The broadcast re-entering settling is the seed of emergent routing.
 
 - [ ] **Step 1: Failing test** `tests/test_network2.py`:
 ```python
 import numpy as np
-from grail.config import GRAILConfig
-from grail.network2 import GRAILWorkspaceNet
-from grail.invariants import assert_one_hot
+from cerebrum.config import CerebrumConfig
+from cerebrum.network2 import CerebrumWorkspaceNet
+from cerebrum.invariants import assert_one_hot
 
 def test_step_runs_routes_and_counts():
-    cfg = GRAILConfig(dims=(4,4), n_settle=8, seed=0)
-    net = GRAILWorkspaceNet(n_modules=3, k_slots=2, slice_dim=4, cfg=cfg)
+    cfg = CerebrumConfig(dims=(4,4), n_settle=8, seed=0)
+    net = CerebrumWorkspaceNet(n_modules=3, k_slots=2, slice_dim=4, cfg=cfg)
     obs = [np.array([1.,0,0,0]), np.array([0,1.,0,0]), np.array([0,0,1.,0])]
     z, M = net.step(obs, reward=1.0)
     assert_one_hot(z, axis=0)                            # routing decision is one-hot
@@ -217,14 +217,14 @@ def test_step_runs_routes_and_counts():
     assert net.counters.global_comm_infer > 0           # broadcast vectors counted at infer time
 
 def test_broadcast_influences_modules():
-    cfg = GRAILConfig(dims=(4,4), n_settle=8, seed=1)
-    net = GRAILWorkspaceNet(n_modules=2, k_slots=1, slice_dim=4, cfg=cfg)
+    cfg = CerebrumConfig(dims=(4,4), n_settle=8, seed=1)
+    net = CerebrumWorkspaceNet(n_modules=2, k_slots=1, slice_dim=4, cfg=cfg)
     obs = [np.array([1.,0,0,0]), np.array([0,0,0,1.])]
     net.step(obs, reward=1.0)
     assert np.any(net.workspace.slots != 0)              # a winner wrote content that will broadcast next step
 ```
 
-- [ ] **Step 2: Fail. Step 3: Implement** `grail/network2.py`:
+- [ ] **Step 2: Fail. Step 3: Implement** `cerebrum/network2.py`:
 ```python
 import numpy as np
 from .pc_core import PCAreas
@@ -236,7 +236,7 @@ from .counters import Counters
 from .rng import SeededRNG
 from .invariants import assert_scalar_M
 
-class GRAILWorkspaceNet:
+class CerebrumWorkspaceNet:
     """Stage-2 cortical workspace network: M modules compete via a stochastic gate for k slots;
     winners' content is broadcast back as top-down prediction. Routing EMERGES from the loop;
     there is no attention/mixer module."""
@@ -289,7 +289,7 @@ class GRAILWorkspaceNet:
 ```
 > **Worker note:** keep `mdims` consistent: a module's bottom area dim = `slice_dim`, higher areas reuse `cfg.dims[1:]`. The top-down `top_pred` must match the module top-area dim (`content_dim`). If a shape mismatch arises, align `top_pred` length to `content_dim` (slice/pad the broadcast) — do NOT route module state into the broadcast in a data-dependent way that would make routing a learned mixing matrix; the broadcast is content written by one-hot winners only.
 
-- [ ] **Step 4: PASS. Step 5: Commit** — `git commit -am "feat(stage2): GRAILWorkspaceNet (modules + gate + workspace + broadcast loop)"`
+- [ ] **Step 4: PASS. Step 5: Commit** — `git commit -am "feat(stage2): CerebrumWorkspaceNet (modules + gate + workspace + broadcast loop)"`
 
 ---
 
@@ -313,13 +313,13 @@ def test_routing_accuracy_rises_above_chance():
 - [ ] **Step 2: Fail. Step 3: Implement** `benchmarks/tasks/binding.py`:
 ```python
 import numpy as np
-from grail.config import GRAILConfig
-from grail.network2 import GRAILWorkspaceNet
+from cerebrum.config import CerebrumConfig
+from cerebrum.network2 import CerebrumWorkspaceNet
 
 def run_binding(n_modules=4, k_slots=1, trials=400, seed=0):
     rng = np.random.default_rng(seed)
-    cfg = GRAILConfig(dims=(n_modules, n_modules), n_settle=6, seed=seed)
-    net = GRAILWorkspaceNet(n_modules, k_slots, slice_dim=n_modules, cfg=cfg)
+    cfg = CerebrumConfig(dims=(n_modules, n_modules), n_settle=6, seed=seed)
+    net = CerebrumWorkspaceNet(n_modules, k_slots, slice_dim=n_modules, cfg=cfg)
     wins_per_module = np.zeros(n_modules); correct = 0
     for t in range(trials):
         target = int(rng.integers(0, n_modules))
@@ -365,8 +365,8 @@ def test_soft_mixer_collapses_to_undifferentiated_mixing():
 - [ ] **Step 2: Fail. Step 3: Implement** `benchmarks/baselines/soft_mixer.py`:
 ```python
 import numpy as np
-from grail.config import GRAILConfig
-from grail.network2 import GRAILWorkspaceNet
+from cerebrum.config import CerebrumConfig
+from cerebrum.network2 import CerebrumWorkspaceNet
 
 class SoftWorkspace:
     """ABLATION ONLY — the FORBIDDEN soft write W_j = sum_m P(win_j=m) read(m). This is a gated
@@ -381,8 +381,8 @@ class SoftWorkspace:
 
 def run_binding_soft(n_modules=4, k_slots=1, trials=400, seed=0):
     rng = np.random.default_rng(seed)
-    cfg = GRAILConfig(dims=(n_modules,n_modules), n_settle=6, seed=seed)
-    net = GRAILWorkspaceNet(n_modules, k_slots, slice_dim=n_modules, cfg=cfg)
+    cfg = CerebrumConfig(dims=(n_modules,n_modules), n_settle=6, seed=seed)
+    net = CerebrumWorkspaceNet(n_modules, k_slots, slice_dim=n_modules, cfg=cfg)
     net.workspace = SoftWorkspace(k_slots, net.content_dim)      # swap in the soft (banned) workspace
     # monkeypatch the write path: use P (soft) instead of z (one-hot)
     wins=np.zeros(n_modules); correct=0; parts=[]
@@ -430,7 +430,7 @@ if __name__ == "__main__":
 ```
 - [ ] **Step 2:** Run `python3 benchmarks/run_stage2.py`, capture the table.
 - [ ] **Step 3:** Update `README.md` with a Stage-2 section: the emergent-mixer claim, the one-hot-vs-soft result, and reiterate the honesty gate (still zero open problems solved; this stage demonstrates emergent routing, NOT scaling parity).
-- [ ] **Step 4:** Run full suite `cd /Users/nazmi/grail && python3 -m pytest -q` (all green).
+- [ ] **Step 4:** Run full suite `cd /Users/nazmi/cerebrum && python3 -m pytest -q` (all green).
 - [ ] **Step 5: Commit** — `git commit -am "docs(stage2): README + emergent routing demonstration; full suite green"`
 
 ---
@@ -441,6 +441,6 @@ if __name__ == "__main__":
 
 **Placeholder scan:** all code steps have complete code or behavioral-contract tests; two worker notes flag the known tricky spots (module dim consistency; routing learning rate) without leaving logic unspecified. ✓
 
-**Type consistency:** `Workspace(k_slots, content_dim).write(z, reads)/broadcast()`; `BasalGangliaGate(n_modules,k_slots,cfg,seed).bid(err_sq,pi)/select(bids,rng,T_gate)/learn(M,eta)/homeostasis()`; `GRAILWorkspaceNet(n_modules,k_slots,slice_dim,cfg).step(obs_slices,reward)` are consistent across Tasks 1-7. Reuses Stage-1 `PCAreas`, `weight_update`, `precision_update`, `feedback_update`, `Neuromodulator`, `Counters`, `SeededRNG` with their existing signatures. ✓
+**Type consistency:** `Workspace(k_slots, content_dim).write(z, reads)/broadcast()`; `BasalGangliaGate(n_modules,k_slots,cfg,seed).bid(err_sq,pi)/select(bids,rng,T_gate)/learn(M,eta)/homeostasis()`; `CerebrumWorkspaceNet(n_modules,k_slots,slice_dim,cfg).step(obs_slices,reward)` are consistent across Tasks 1-7. Reuses Stage-1 `PCAreas`, `weight_update`, `precision_update`, `feedback_update`, `Neuromodulator`, `Counters`, `SeededRNG` with their existing signatures. ✓
 
 **Intentional scope gap:** Stage 3 (metaplastic fuse + catastrophic-forgetting Task-2) is the next plan.

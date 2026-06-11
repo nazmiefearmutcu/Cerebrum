@@ -13,7 +13,7 @@ shape contracts, and that the noise-free completion runner is deterministic. The
 "depth helps" — whether it does is the empirical question the run script answers honestly.
 """
 import numpy as np
-from grail.config import GRAILConfig
+from cerebrum.config import CerebrumConfig
 from benchmarks.tasks.compositional import (
     CompositionalTask, run_pc_completion, run_flat_memorizer, run_backprop_mlp,
 )
@@ -47,7 +47,7 @@ def test_train_holdout_split_is_disjoint_and_covers_factors():
 
 def test_pc_completion_runner_finite_and_in_range():
     task = CompositionalTask(A=3, B=3, part_dim=6, seed=2)
-    cfg = GRAILConfig(dims=(task.obs_dim, 16), n_settle=10, seed=0)
+    cfg = CerebrumConfig(dims=(task.obs_dim, 16), n_settle=10, seed=0)
     res = run_pc_completion(task, cfg, passes=10)
     assert np.isfinite(res["acc_heldout"]) and 0.0 <= res["acc_heldout"] <= 1.0
     assert np.isfinite(res["acc_train"]) and 0.0 <= res["acc_train"] <= 1.0
@@ -56,7 +56,7 @@ def test_pc_completion_runner_finite_and_in_range():
 def test_pc_completion_is_deterministic_readout():
     # the T=0 noise-free completion measurement must be a pure function of the learned weights
     task = CompositionalTask(A=3, B=3, part_dim=6, seed=3)
-    cfg = GRAILConfig(dims=(task.obs_dim, 16, 16), n_settle=8, seed=1)
+    cfg = CerebrumConfig(dims=(task.obs_dim, 16, 16), n_settle=8, seed=1)
     r1 = run_pc_completion(task, cfg, passes=8)
     r2 = run_pc_completion(task, cfg, passes=8)
     assert abs(r1["acc_heldout"] - r2["acc_heldout"]) < 1e-9
@@ -66,7 +66,7 @@ def test_pc_completion_is_deterministic_readout():
 def test_depth_variants_all_run():
     task = CompositionalTask(A=3, B=3, part_dim=6, seed=4)
     for dims in [(task.obs_dim, 16), (task.obs_dim, 16, 16), (task.obs_dim, 16, 16, 16)]:
-        cfg = GRAILConfig(dims=dims, n_settle=8, seed=0)
+        cfg = CerebrumConfig(dims=dims, n_settle=8, seed=0)
         res = run_pc_completion(task, cfg, passes=6)
         assert np.isfinite(res["acc_heldout"]) and 0.0 <= res["acc_heldout"] <= 1.0
 

@@ -1,24 +1,24 @@
-# GRAIL Stage 0+1 Implementation Plan — PC Core + Grid HEAD + Few-Shot Harness
+# CEREBRUM Stage 0+1 Implementation Plan — PC Core + Grid HEAD + Few-Shot Harness
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the GRAIL predictive-coding core (error neurons, stochastic Langevin settling, four-factor local plasticity, separate feedback weights, diagonal precision) plus the structured grid generative HEAD, and prove on a TEM-class few-shot task that the grid prior buys sample efficiency a flat prior and a backprop MLP cannot.
+**Goal:** Build the CEREBRUM predictive-coding core (error neurons, stochastic Langevin settling, four-factor local plasticity, separate feedback weights, diagonal precision) plus the structured grid generative HEAD, and prove on a TEM-class few-shot task that the grid prior buys sample efficiency a flat prior and a backprop MLP cannot.
 
-**Architecture:** Pure NumPy, **no autograd, no backprop anywhere in GRAIL** — every update is a hand-written local rule. The backprop MLP exists only as a *baseline comparator*. All three BAN-1/2/3 invariants are enforced as executable assertions/types so violation is impossible by construction. GPU/CPU is a microscope; success is measured only on sample efficiency (this plan), with energy/op counters instrumented for later stages.
+**Architecture:** Pure NumPy, **no autograd, no backprop anywhere in CEREBRUM** — every update is a hand-written local rule. The backprop MLP exists only as a *baseline comparator*. All three BAN-1/2/3 invariants are enforced as executable assertions/types so violation is impossible by construction. GPU/CPU is a microscope; success is measured only on sample efficiency (this plan), with energy/op counters instrumented for later stages.
 
 **Tech Stack:** Python 3 (`python3` = 3.14, numpy 2.x), pytest. No torch, no jax, no sklearn.
 
-**Spec:** `docs/superpowers/specs/2026-06-08-grail-cortical-workspace-design.md` (read §2, §3, §5, §10, §12 before starting).
+**Spec:** `docs/superpowers/specs/2026-06-08-cerebrum-cortical-workspace-design.md` (read §2, §3, §5, §10, §12 before starting).
 
 ---
 
 ## File Structure
 
 ```
-grail/
-  grail/
+cerebrum/
+  cerebrum/
     __init__.py        # package marker, version
-    config.py          # GRAILConfig dataclass — all hyperparameters
+    config.py          # CerebrumConfig dataclass — all hyperparameters
     rng.py             # SeededRNG — centralized reproducible noise (zeroable for deterministic tests)
     types.py           # Exogenous wrapper type (enforces z_act exogeneity by construction)
     invariants.py      # BAN-1/2/3 executable assertions
@@ -28,7 +28,7 @@ grail/
     plasticity.py      # eligibility traces, four-factor local weight rule, feedback-B local rule, precision learning
     neuromod.py        # scalar neuromodulator M (r - r_bar EMA) + couplings (T, Pi-gain, eta, T_gate)
     grid_head.py       # structured generative prior: frozen grid modules, path integration, content store, completion
-    network.py         # GRAILCore (Stage-1: PC areas + grid HEAD, NO gate yet) — observe + learn + predict
+    network.py         # CerebrumCore (Stage-1: PC areas + grid HEAD, NO gate yet) — observe + learn + predict
   tests/
     test_config.py  test_rng.py  test_types.py  test_invariants.py  test_counters.py
     test_nonlinear.py  test_pc_core.py  test_plasticity.py  test_neuromod.py
@@ -36,9 +36,9 @@ grail/
   benchmarks/
     tasks/gridworld.py          # TEM-class structured environment + episode generator
     tasks/graph_completion.py   # few-shot graph-completion metric
-    baselines/flat_prior.py     # GRAIL with flat (non-path-integrating) prior — Pillar-3 ablation
+    baselines/flat_prior.py     # CEREBRUM with flat (non-path-integrating) prior — Pillar-3 ablation
     baselines/backprop_mlp.py   # tiny manual-backprop MLP — baseline comparator ONLY
-    run_task1.py                # GRAIL-grid vs flat vs backprop @ K in {5,10,20}
+    run_task1.py                # CEREBRUM-grid vs flat vs backprop @ K in {5,10,20}
   tests/test_task1_smoke.py     # smoke + the load-bearing assertion grid > flat on completion
   pyproject.toml
   conftest.py
@@ -50,7 +50,7 @@ grail/
 ## Task 1: Project scaffolding + config + seeded RNG
 
 **Files:**
-- Create: `pyproject.toml`, `conftest.py`, `grail/__init__.py`, `grail/config.py`, `grail/rng.py`
+- Create: `pyproject.toml`, `conftest.py`, `cerebrum/__init__.py`, `cerebrum/config.py`, `cerebrum/rng.py`
 - Test: `tests/test_config.py`, `tests/test_rng.py`
 
 - [ ] **Step 1: Write `pyproject.toml` and `conftest.py`**
@@ -58,9 +58,9 @@ grail/
 `pyproject.toml`:
 ```toml
 [project]
-name = "grail"
+name = "cerebrum"
 version = "0.0.1"
-description = "GRAIL — predictive-coding, backprop-free, local-plasticity, neuromorphic-targeted learning"
+description = "CEREBRUM — predictive-coding, backprop-free, local-plasticity, neuromorphic-targeted learning"
 requires-python = ">=3.11"
 dependencies = ["numpy>=2.0"]
 
@@ -78,10 +78,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 `tests/test_config.py`:
 ```python
-from grail.config import GRAILConfig
+from cerebrum.config import CerebrumConfig
 
 def test_defaults_present_and_sane():
-    c = GRAILConfig()
+    c = CerebrumConfig()
     assert c.dims[0] > 0 and len(c.dims) >= 2
     assert c.T_floor > 0.0           # Pillar 4: never MAP collapse
     assert c.dt > 0 and c.n_settle > 0
@@ -89,14 +89,14 @@ def test_defaults_present_and_sane():
     assert c.tau_x < c.tau_w
 
 def test_config_is_frozen_and_overridable():
-    c = GRAILConfig(seed=7, T_floor=0.05)
+    c = CerebrumConfig(seed=7, T_floor=0.05)
     assert c.seed == 7 and c.T_floor == 0.05
 ```
 
 `tests/test_rng.py`:
 ```python
 import numpy as np
-from grail.rng import SeededRNG
+from cerebrum.rng import SeededRNG
 
 def test_reproducible():
     a = SeededRNG(123).normal((4,)); b = SeededRNG(123).normal((4,))
@@ -111,16 +111,16 @@ def test_zeroable_for_deterministic_tests():
 
 - [ ] **Step 4: Implement**
 
-`grail/__init__.py`:
+`cerebrum/__init__.py`:
 ```python
 __version__ = "0.0.1"
 ```
-`grail/config.py`:
+`cerebrum/config.py`:
 ```python
 from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
-class GRAILConfig:
+class CerebrumConfig:
     # PC hierarchy
     dims: tuple = (16, 12, 8)        # area sizes, dims[0] = observation/lowest area
     # timescales (smaller = faster)
@@ -152,7 +152,7 @@ class GRAILConfig:
     # misc
     seed: int = 0
 ```
-`grail/rng.py`:
+`cerebrum/rng.py`:
 ```python
 import numpy as np
 
@@ -180,7 +180,7 @@ class SeededRNG:
 ## Task 2: BAN-1/2/3 invariants as executable assertions + Exogenous type
 
 **Files:**
-- Create: `grail/types.py`, `grail/invariants.py`
+- Create: `cerebrum/types.py`, `cerebrum/invariants.py`
 - Test: `tests/test_types.py`, `tests/test_invariants.py`
 
 This task makes the three bans **impossible to violate silently**: a soft (non-one-hot) workspace write raises, a data-derived `z_act` is a *type error*, and a vector neuromodulator raises.
@@ -190,7 +190,7 @@ This task makes the three bans **impossible to violate silently**: a soft (non-o
 `tests/test_types.py`:
 ```python
 import numpy as np, pytest
-from grail.types import Exogenous
+from cerebrum.types import Exogenous
 
 def test_exogenous_wraps_array():
     a = Exogenous(np.array([1.0, 0.0]))
@@ -205,8 +205,8 @@ def test_plain_array_is_not_exogenous():
 `tests/test_invariants.py`:
 ```python
 import numpy as np, pytest
-from grail.invariants import assert_one_hot, assert_scalar_M, assert_exogenous_action
-from grail.types import Exogenous
+from cerebrum.invariants import assert_one_hot, assert_scalar_M, assert_exogenous_action
+from cerebrum.types import Exogenous
 
 def test_one_hot_passes_for_one_hot_columns():
     z = np.array([[1.0,0.0],[0.0,1.0],[0.0,0.0]])  # per-slot (column) one-hot; a slot may be empty
@@ -232,7 +232,7 @@ def test_exogenous_action_accepts_only_wrapped():
 
 - [ ] **Step 3: Implement**
 
-`grail/types.py`:
+`cerebrum/types.py`:
 ```python
 import numpy as np
 from dataclasses import dataclass
@@ -248,7 +248,7 @@ class Exogenous:
         object.__setattr__(self, "value", v)
 ```
 
-`grail/invariants.py`:
+`cerebrum/invariants.py`:
 ```python
 import numpy as np
 from .types import Exogenous
@@ -283,14 +283,14 @@ def assert_exogenous_action(action):
 
 ## Task 3: Energy / operation counters (LEARN vs INFER global comm)
 
-**Files:** Create `grail/counters.py`; Test `tests/test_counters.py`
+**Files:** Create `cerebrum/counters.py`; Test `tests/test_counters.py`
 
 Per spec §10 Task-3: report global comm as TWO numbers (LEARN-time scalar M vs INFER-time broadcast vectors), synaptic ops, and activation sparsity.
 
 - [ ] **Step 1: Failing test** `tests/test_counters.py`:
 ```python
 import numpy as np
-from grail.counters import Counters
+from cerebrum.counters import Counters
 
 def test_counts_learn_and_infer_separately():
     c = Counters()
@@ -308,7 +308,7 @@ def test_sparsity_tracks_active_fraction():
 ```
 
 - [ ] **Step 2: Run, fail.**
-- [ ] **Step 3: Implement** `grail/counters.py`:
+- [ ] **Step 3: Implement** `cerebrum/counters.py`:
 ```python
 import numpy as np
 
@@ -333,12 +333,12 @@ class Counters:
 
 ## Task 4: Nonlinearity (g_act + derivative)
 
-**Files:** Create `grail/nonlinear.py`; Test `tests/test_nonlinear.py`
+**Files:** Create `cerebrum/nonlinear.py`; Test `tests/test_nonlinear.py`
 
 - [ ] **Step 1: Failing test:**
 ```python
 import numpy as np
-from grail.nonlinear import g_act, g_deriv
+from cerebrum.nonlinear import g_act, g_deriv
 
 def test_tanh_values():
     u = np.array([-1.0, 0.0, 1.0])
@@ -361,19 +361,19 @@ def g_deriv(u):  return 1.0 - np.tanh(u)**2   # f = g_act' evaluated at the PRE-
 
 ## Task 5: PC areas — predictions + error neurons + diagonal precision
 
-**Files:** Create `grail/pc_core.py`; Test `tests/test_pc_core.py`
+**Files:** Create `cerebrum/pc_core.py`; Test `tests/test_pc_core.py`
 
 Implements spec §2 (ε_l = x_l − ŷ_l, ŷ_l = g_act(W_l x_{l+1})), diagonal precision Π_l, and the energy term `Σ_l ½ ε_lᵀ Π_l ε_l − ½ log det Π_l`. **No settling yet.** Index convention: `x[0]` = lowest/observation area; `x[l]` predicted from `x[l+1]` via `W[l]`. Top area `x[L-1]` receives its top-down prediction from the grid HEAD (passed in later); for this task the top prediction defaults to zero.
 
 - [ ] **Step 1: Failing test** `tests/test_pc_core.py`:
 ```python
 import numpy as np
-from grail.config import GRAILConfig
-from grail.pc_core import PCAreas
-from grail.nonlinear import g_act
+from cerebrum.config import CerebrumConfig
+from cerebrum.pc_core import PCAreas
+from cerebrum.nonlinear import g_act
 
 def make():
-    c = GRAILConfig(dims=(4,3,2), seed=0)
+    c = CerebrumConfig(dims=(4,3,2), seed=0)
     return PCAreas(c), c
 
 def test_shapes():
@@ -399,7 +399,7 @@ def test_energy_decreases_when_error_decreases():
     assert e_lo <= e_hi  # zero error -> lower precision-weighted energy term
 ```
 
-- [ ] **Step 2: Run, fail. Step 3: Implement** `grail/pc_core.py`:
+- [ ] **Step 2: Run, fail. Step 3: Implement** `cerebrum/pc_core.py`:
 ```python
 import numpy as np
 from .nonlinear import g_act, g_deriv
@@ -442,19 +442,19 @@ class PCAreas:
 
 ## Task 6: Langevin settling step (Euler-Maruyama) + feedback term
 
-**Files:** Modify `grail/pc_core.py` (add `settle_step`); Create `tests/test_settling.py`
+**Files:** Modify `cerebrum/pc_core.py` (add `settle_step`); Create `tests/test_settling.py`
 
 Implements spec §3①: `τ_x dx_l = [ −Π_l ε_l + B_{l-1}(f'⊙Π_{l-1}ε_{l-1}) − γ sign(x_l) ] dt + √(2τ_x T) dW_l`. Euler-Maruyama: `x += (drift/τ_x)·dt + √(2T·dt/τ_x)·ξ`. The bottom area `x[0]` is **clamped** to the observation (sensory input), so it is not updated by settling. The feedback term for area `l` uses `ε[l-1]` (area below) through `B[l-1]`.
 
 - [ ] **Step 1: Failing test** `tests/test_settling.py`:
 ```python
 import numpy as np
-from grail.config import GRAILConfig
-from grail.pc_core import PCAreas
-from grail.rng import SeededRNG
+from cerebrum.config import CerebrumConfig
+from cerebrum.pc_core import PCAreas
+from cerebrum.rng import SeededRNG
 
 def test_deterministic_settling_reduces_energy():
-    c = GRAILConfig(dims=(6,5,4), seed=1, T_floor=0.0, n_settle=80, dt=0.05, gamma=0.0)
+    c = CerebrumConfig(dims=(6,5,4), seed=1, T_floor=0.0, n_settle=80, dt=0.05, gamma=0.0)
     pc = PCAreas(c)
     # symmetric limit for a clean Lyapunov check: set B[l] = W[l].T
     for l in range(pc.L-1): pc.B[l] = pc.W[l].T.copy()
@@ -469,7 +469,7 @@ def test_deterministic_settling_reduces_energy():
     assert pc.energy() < e0           # deterministic settling descends the surrogate energy
 
 def test_noise_prevents_collapse():
-    c = GRAILConfig(dims=(5,4), seed=2, T_floor=0.1, dt=0.05)
+    c = CerebrumConfig(dims=(5,4), seed=2, T_floor=0.1, dt=0.05)
     pc = PCAreas(c); obs = np.array([0.2,0.1,-0.3,0.4,0.0])
     pc.x[0][:] = obs; pc.compute_errors()
     rng = SeededRNG(3, enabled=True)
@@ -511,35 +511,35 @@ def test_noise_prevents_collapse():
 
 ## Task 7: Neuromodulator M + couplings
 
-**Files:** Create `grail/neuromod.py`; Test `tests/test_neuromod.py`
+**Files:** Create `cerebrum/neuromod.py`; Test `tests/test_neuromod.py`
 
 Spec §3③/§4: `M = r − r̄`, `τ_r dr̄/dt = −r̄ + r`; couplings `T(M)=T_floor+b_T·relu(M)`, `Pi_gain(M)=σ(a_Π M)`, `eta(M)=η0·relu(M)`, `T_gate(M)∝1/M`. `M` is the **only** non-local signal and must stay scalar.
 
 - [ ] **Step 1: Failing test** `tests/test_neuromod.py`:
 ```python
 import numpy as np
-from grail.config import GRAILConfig
-from grail.neuromod import Neuromodulator
-from grail.invariants import assert_scalar_M
+from cerebrum.config import CerebrumConfig
+from cerebrum.neuromod import Neuromodulator
+from cerebrum.invariants import assert_scalar_M
 
 def test_M_is_reward_minus_baseline_and_scalar():
-    nm = Neuromodulator(GRAILConfig())
+    nm = Neuromodulator(CerebrumConfig())
     M = nm.update(reward=1.0); assert_scalar_M(M)
     assert M > 0                       # first reward above baseline 0 -> positive surprise
 
 def test_baseline_tracks_reward():
-    nm = Neuromodulator(GRAILConfig(tau_r=2.0))
+    nm = Neuromodulator(CerebrumConfig(tau_r=2.0))
     for _ in range(500): nm.update(reward=1.0)
     assert abs(nm.r_bar - 1.0) < 1e-2  # steady reward -> baseline converges -> M -> 0
     assert abs(nm.update(1.0)) < 1e-2
 
 def test_couplings_monotone():
-    nm = Neuromodulator(GRAILConfig())
+    nm = Neuromodulator(CerebrumConfig())
     assert nm.temperature(0.5) > nm.temperature(0.0)   # surprise heats up
     assert nm.eta(0.5) > nm.eta(0.0)                    # surprise raises learning rate
 ```
 
-- [ ] **Step 2: Fail. Step 3: Implement** `grail/neuromod.py`:
+- [ ] **Step 2: Fail. Step 3: Implement** `cerebrum/neuromod.py`:
 ```python
 import numpy as np
 
@@ -562,24 +562,24 @@ class Neuromodulator:
 
 ## Task 8: Four-factor local plasticity + precision learning
 
-**Files:** Create `grail/plasticity.py`; Test `tests/test_plasticity.py`
+**Files:** Create `cerebrum/plasticity.py`; Test `tests/test_plasticity.py`
 
 Spec §3③: `τ_w Ẇ_{l,ij} = M·θ_{l,ij}·Π_{l,i}·ε_{l,i}·e_{l,ij}`, eligibility `τ_e ė = −e + a_{l+1,j}`, **precision-once** (Π standalone, eligibility is bare presynaptic low-pass) so `−∂F/∂W = −Π·ε·a` exactly. Precision learning `τ_Π Π̇ = −(Π−Π0)+κ(Π⁻¹−⟨ε²⟩)`. For Stage 1, `θ≡1` (metaplasticity arrives in Stage 3).
 
 - [ ] **Step 1: Failing tests** `tests/test_plasticity.py`:
 ```python
 import numpy as np
-from grail.config import GRAILConfig
-from grail.plasticity import Eligibility, weight_update, precision_update
+from cerebrum.config import CerebrumConfig
+from cerebrum.plasticity import Eligibility, weight_update, precision_update
 
 def test_eligibility_lowpasses_presynaptic_activity():
-    e = Eligibility(shape=(3,), cfg=GRAILConfig(tau_e=4.0))
+    e = Eligibility(shape=(3,), cfg=CerebrumConfig(tau_e=4.0))
     for _ in range(1000): e.step(a_pre=np.ones(3))
     assert np.allclose(e.value, 1.0, atol=1e-2)   # converges to steady presyn activity
 
 def test_weight_update_matches_negative_grad_in_deterministic_limit():
     # -dF/dW_{ij} = Pi_i * eps_i * a_j  (precision-once). With M=theta=1 the rule must equal eta * that.
-    c = GRAILConfig(eta_w=1.0)
+    c = CerebrumConfig(eta_w=1.0)
     Pi = np.array([2.0, 0.5]); eps = np.array([0.3, -0.4]); e = np.array([1.0, 0.5, -1.0])
     dW = weight_update(M=1.0, theta=np.ones((2,3)), Pi_post=Pi, eps_post=eps, elig=e, eta=c.eta_w)
     expected = np.outer(Pi*eps, e)                # (2,3)
@@ -591,13 +591,13 @@ def test_M_zero_means_no_learning():
     assert np.allclose(dW, 0.0)                    # neuromodulator gates WHEN to learn
 
 def test_precision_converges_to_inverse_variance():
-    c = GRAILConfig(tau_pi=1.0, sigma0=0.0, kappa_pi=1.0)
+    c = CerebrumConfig(tau_pi=1.0, sigma0=0.0, kappa_pi=1.0)
     Pi = np.array([1.0]); var = 0.25
     for _ in range(5000): Pi = precision_update(Pi, eps_sq=np.array([var]), cfg=c)
     assert abs(Pi[0] - 1.0/var) < 0.1             # Pi -> 1/<eps^2>
 ```
 
-- [ ] **Step 2: Fail. Step 3: Implement** `grail/plasticity.py`:
+- [ ] **Step 2: Fail. Step 3: Implement** `cerebrum/plasticity.py`:
 ```python
 import numpy as np
 
@@ -627,16 +627,16 @@ def precision_update(Pi, eps_sq, cfg):
 
 ## Task 9: Feedback weight B local update (Kolen-Pollack-class) + locality guard
 
-**Files:** Modify `grail/plasticity.py` (add `feedback_update`); add tests to `tests/test_plasticity.py`
+**Files:** Modify `cerebrum/plasticity.py` (add `feedback_update`); add tests to `tests/test_plasticity.py`
 
 Spec §3: `τ_B Ḃ_l = η_B a_{l+1} ε_lᵀ − λ_B B_l` — local, same neuron pair, **no transpose read**. Honest: NOT guaranteed to track Wᵀ.
 
 - [ ] **Step 1: Failing test (append):**
 ```python
 def test_feedback_update_is_local_outer_product():
-    from grail.plasticity import feedback_update
-    from grail.config import GRAILConfig
-    c = GRAILConfig(eta_b=1.0, lam_b=0.0)
+    from cerebrum.plasticity import feedback_update
+    from cerebrum.config import CerebrumConfig
+    c = CerebrumConfig(eta_b=1.0, lam_b=0.0)
     a_up = np.array([1.0, -1.0]); eps = np.array([0.5, 0.2, -0.3])   # B shape (2,3)
     B = np.zeros((2,3))
     dB = feedback_update(B, a_up=a_up, eps=eps, cfg=c)
@@ -654,44 +654,44 @@ def feedback_update(B, a_up, eps, cfg):
 
 ## Task 10: Grid HEAD — frozen modules + path integration
 
-**Files:** Create `grail/grid_head.py`; Test `tests/test_grid_head.py`
+**Files:** Create `cerebrum/grid_head.py`; Test `tests/test_grid_head.py`
 
 Spec §5: each module `m` has a frozen 2D spatial frequency vector `k_m`; phase `θ_m = k_m · pos`; code `g_m = [cos θ_m, sin θ_m]`. Path integration over **Exogenous** actions is a structural identity (loop closure exact). The transition accepts ONLY `Exogenous` (BAN-1).
 
 - [ ] **Step 1: Failing test** `tests/test_grid_head.py`:
 ```python
 import numpy as np, pytest
-from grail.config import GRAILConfig
-from grail.grid_head import GridHead
-from grail.types import Exogenous
+from cerebrum.config import CerebrumConfig
+from cerebrum.grid_head import GridHead
+from cerebrum.types import Exogenous
 
 def test_code_shape_and_unit_norm_per_module():
-    gh = GridHead(GRAILConfig(grid_n_modules=6)); gh.reset()
+    gh = GridHead(CerebrumConfig(grid_n_modules=6)); gh.reset()
     g = gh.encode(); assert g.shape == (12,)              # 6 modules x 2
     mods = g.reshape(6,2)
     assert np.allclose(np.linalg.norm(mods, axis=1), 1.0) # each module is a unit phasor
 
 def test_path_integration_loop_closure():
-    gh = GridHead(GRAILConfig()); gh.reset()
+    gh = GridHead(CerebrumConfig()); gh.reset()
     g0 = gh.encode().copy()
     for a in [[1,0],[0,1],[-1,0],[0,-1]]:                 # walk a unit square, return to start
         gh.transition(Exogenous(np.array(a, float)))
     assert np.allclose(gh.encode(), g0, atol=1e-9)        # exact loop closure (structural)
 
 def test_path_integration_is_additive():
-    gh = GridHead(GRAILConfig()); gh.reset()
+    gh = GridHead(CerebrumConfig()); gh.reset()
     gh.transition(Exogenous(np.array([2.0,1.0]))); gA = gh.encode().copy()
     gh.reset()
     gh.transition(Exogenous(np.array([1.0,0.0]))); gh.transition(Exogenous(np.array([1.0,1.0])))
     assert np.allclose(gh.encode(), gA, atol=1e-9)        # displacement composes (graph algebra)
 
 def test_transition_rejects_plain_array():
-    gh = GridHead(GRAILConfig()); gh.reset()
+    gh = GridHead(CerebrumConfig()); gh.reset()
     with pytest.raises(TypeError):
         gh.transition(np.array([1.0,0.0]))                # data-derived action = BAN-1
 ```
 
-- [ ] **Step 2: Fail. Step 3: Implement** `grail/grid_head.py` (modules + path integration; content store added in Task 11):
+- [ ] **Step 2: Fail. Step 3: Implement** `cerebrum/grid_head.py` (modules + path integration; content store added in Task 11):
 ```python
 import numpy as np
 from .invariants import assert_exogenous_action
@@ -722,14 +722,14 @@ class GridHead:
 
 ## Task 11: Grid HEAD — content store (Hebbian bind) + completion
 
-**Files:** Modify `grail/grid_head.py`; add tests to `tests/test_grid_head.py`
+**Files:** Modify `cerebrum/grid_head.py`; add tests to `tests/test_grid_head.py`
 
 Spec §5: content store `M_t += η (w ⊗ ĝ)`; completion `ŵ = M_t g` (then decode). This is the fast, M-gated, within-episode memory; structural weights stay frozen.
 
 - [ ] **Step 1: Failing tests (append):**
 ```python
 def test_bind_then_complete_recovers_observation_at_bound_location():
-    gh = GridHead(GRAILConfig()); gh.reset()
+    gh = GridHead(CerebrumConfig()); gh.reset()
     obs = np.array([0.0, 1.0, 0.0, -1.0])
     gh.bind(obs)                                  # bind obs at current location
     rec = gh.complete()                           # complete at the SAME location
@@ -737,13 +737,13 @@ def test_bind_then_complete_recovers_observation_at_bound_location():
     assert np.dot(rec, obs)/(np.linalg.norm(rec)*np.linalg.norm(obs)+1e-9) > 0.9
 
 def test_completion_generalizes_to_path_integrated_location():
-    gh = GridHead(GRAILConfig()); gh.reset()
+    gh = GridHead(CerebrumConfig()); gh.reset()
     obsA = np.array([1.0,0.0,0.0]); obsB = np.array([0.0,1.0,0.0])
     gh.bind(obsA)
-    gh.transition(__import__('grail.types',fromlist=['Exogenous']).Exogenous(np.array([3.0,2.0])))
+    gh.transition(__import__('cerebrum.types',fromlist=['Exogenous']).Exogenous(np.array([3.0,2.0])))
     gh.bind(obsB)
     # return to A by exact inverse displacement; completion should recall obsA (graph completion)
-    gh.transition(__import__('grail.types',fromlist=['Exogenous']).Exogenous(np.array([-3.0,-2.0])))
+    gh.transition(__import__('cerebrum.types',fromlist=['Exogenous']).Exogenous(np.array([-3.0,-2.0])))
     rec = gh.complete()
     assert np.dot(rec, obsA)/(np.linalg.norm(rec)*np.linalg.norm(obsA)+1e-9) > 0.8
 ```
@@ -767,22 +767,22 @@ def test_completion_generalizes_to_path_integrated_location():
 
 ---
 
-## Task 12: GRAILCore assembly (Stage-1: PC areas + grid HEAD, no gate)
+## Task 12: CerebrumCore assembly (Stage-1: PC areas + grid HEAD, no gate)
 
-**Files:** Create `grail/network.py`; Test `tests/test_network.py`
+**Files:** Create `cerebrum/network.py`; Test `tests/test_network.py`
 
 Wires the grid HEAD's decoded completion as the top-down prediction to the top PC area, runs settling, then a local-plasticity learning step. No gate/workspace yet (Stage 2). Verifies invariants + counters fire.
 
 - [ ] **Step 1: Failing test** `tests/test_network.py`:
 ```python
 import numpy as np
-from grail.config import GRAILConfig
-from grail.network import GRAILCore
-from grail.types import Exogenous
+from cerebrum.config import CerebrumConfig
+from cerebrum.network import CerebrumCore
+from cerebrum.types import Exogenous
 
 def test_observe_learn_predict_runs_and_counts():
-    c = GRAILConfig(dims=(6,5,4), grid_n_modules=6, n_settle=20, seed=0)
-    net = GRAILCore(c)
+    c = CerebrumConfig(dims=(6,5,4), grid_n_modules=6, n_settle=20, seed=0)
+    net = CerebrumCore(c)
     obs = np.array([0.2,-0.1,0.3,0.0,0.5,-0.2])
     M = net.observe_and_learn(obs, reward=1.0)             # one episode step
     assert np.isscalar(M) or np.ndim(M)==0                 # scalar neuromodulator only
@@ -791,13 +791,13 @@ def test_observe_learn_predict_runs_and_counts():
 
 def test_no_weight_transport_used():
     # structural guarantee: B and W are independent arrays (no aliasing, no transpose read)
-    c = GRAILConfig(dims=(5,4), seed=1); net = GRAILCore(c)
+    c = CerebrumConfig(dims=(5,4), seed=1); net = CerebrumCore(c)
     for l in range(net.pc.L-1):
         assert net.pc.B[l] is not net.pc.W[l]
         assert net.pc.B[l].shape == net.pc.W[l].T.shape    # shapes compatible but separate synapses
 ```
 
-- [ ] **Step 2: Fail. Step 3: Implement** `grail/network.py`:
+- [ ] **Step 2: Fail. Step 3: Implement** `cerebrum/network.py`:
 ```python
 import numpy as np
 from .pc_core import PCAreas
@@ -809,7 +809,7 @@ from .rng import SeededRNG
 from .invariants import assert_scalar_M
 from .types import Exogenous
 
-class GRAILCore:
+class CerebrumCore:
     def __init__(self, cfg):
         self.cfg = cfg
         self.pc = PCAreas(cfg)
@@ -861,7 +861,7 @@ class GRAILCore:
         """Completion-based prediction at the current (path-integrated) location."""
         return self.grid.complete() if self.grid.store is not None else np.zeros(obs_dim)
 ```
-- [ ] **Step 4: PASS. Step 5: Commit** — `git commit -am "feat: GRAILCore (PC + grid HEAD) observe/learn/predict, no gate"`
+- [ ] **Step 4: PASS. Step 5: Commit** — `git commit -am "feat: CerebrumCore (PC + grid HEAD) observe/learn/predict, no gate"`
 
 ---
 
@@ -935,7 +935,7 @@ def make_episode(h, w, vocab, K, seed=0):
 
 ---
 
-## Task 14: Graph-completion metric + GRAIL runner
+## Task 14: Graph-completion metric + CEREBRUM runner
 
 **Files:** Create `benchmarks/tasks/graph_completion.py`; add test to `tests/test_task1_smoke.py`
 
@@ -944,24 +944,24 @@ The model walks the episode (binding obs at each visited cell via exogenous acti
 - [ ] **Step 1: Failing test (append):**
 ```python
 import numpy as np
-from grail.config import GRAILConfig
-from grail.network import GRAILCore
+from cerebrum.config import CerebrumConfig
+from cerebrum.network import CerebrumCore
 from benchmarks.tasks.gridworld import make_episode
-from benchmarks.tasks.graph_completion import run_grail_episode
+from benchmarks.tasks.graph_completion import run_cerebrum_episode
 
-def test_grail_scores_above_chance_on_completion():
+def test_cerebrum_scores_above_chance_on_completion():
     ep = make_episode(h=4, w=4, vocab=5, K=12, seed=2)
-    cfg = GRAILConfig(dims=(5,8,8), grid_n_modules=8, n_settle=10, seed=0)
-    score = run_grail_episode(GRAILCore(cfg), ep)
+    cfg = CerebrumConfig(dims=(5,8,8), grid_n_modules=8, n_settle=10, seed=0)
+    score = run_cerebrum_episode(CerebrumCore(cfg), ep)
     assert score > 1.0/5                       # beats 1/vocab chance via path-integrated completion
 ```
 
 - [ ] **Step 2: Fail. Step 3: Implement** `benchmarks/tasks/graph_completion.py`:
 ```python
 import numpy as np
-from grail.types import Exogenous
+from cerebrum.types import Exogenous
 
-def run_grail_episode(net, ep):
+def run_cerebrum_episode(net, ep):
     """Walk the episode binding obs at each cell; then score held-out path-integrated completions."""
     net.grid.reset()
     # walk: at each step bind current obs (drive grid by EXOGENOUS action)
@@ -985,7 +985,7 @@ def run_grail_episode(net, ep):
 ```
 > **Worker note:** binding happens at the cell's grid code; the runner must move the grid to each visited cell with the SAME origin convention used at query time (origin = (0,0) at first obs). Keep the grid's `pos` consistent: bind at `pos == cell coordinates`. If completion underperforms, verify the bind-time `pos` equals the query-time path-integrated `pos` for the same cell (they must match exactly — that is the whole graph-completion mechanism).
 
-- [ ] **Step 4: PASS. Step 5: Commit** — `git commit -am "feat: graph-completion metric + GRAIL episode runner"`
+- [ ] **Step 4: PASS. Step 5: Commit** — `git commit -am "feat: graph-completion metric + CEREBRUM episode runner"`
 
 ---
 
@@ -993,7 +993,7 @@ def run_grail_episode(net, ep):
 
 **Files:** Create `benchmarks/baselines/__init__.py`, `benchmarks/baselines/flat_prior.py`, `benchmarks/baselines/backprop_mlp.py`; add tests.
 
-- **Flat prior:** identical to GRAIL but the "grid" code is a fixed random code per *visited cell* that does NOT path-integrate — so it can recall obs only at exactly-revisited codes, and a path-integrated query lands on an unbound code → chance. Proves Pillar 3 is load-bearing.
+- **Flat prior:** identical to CEREBRUM but the "grid" code is a fixed random code per *visited cell* that does NOT path-integrate — so it can recall obs only at exactly-revisited codes, and a path-integrated query lands on an unbound code → chance. Proves Pillar 3 is load-bearing.
 - **Backprop MLP (comparator only):** maps (start one-hot ⊕ displacement) → target obs, trained with manual backprop on the walked edges; tested on held-out queries. With few K it overfits walked edges and generalizes worse than the grid at small K.
 
 - [ ] **Step 1: Failing tests** (`tests/test_task1_smoke.py`, append):
@@ -1044,7 +1044,7 @@ def run_flat_episode(ep):
 import numpy as np
 
 def run_mlp_episode(ep, epochs=100, hidden=32, lr=0.1, seed=0):
-    """Baseline COMPARATOR ONLY (uses backprop — GRAIL never does). Maps start-cell-onehot ⊕ disp -> obs."""
+    """Baseline COMPARATOR ONLY (uses backprop — CEREBRUM never does). Maps start-cell-onehot ⊕ disp -> obs."""
     rng = np.random.default_rng(seed)
     cells = sorted(ep.observed_cells); idx = {c:i for i,c in enumerate(cells)}
     nin = len(cells) + 2; nout = ep.gw.vocab
@@ -1075,52 +1075,52 @@ def run_mlp_episode(ep, epochs=100, hidden=32, lr=0.1, seed=0):
 
 ---
 
-## Task 16: run_task1 harness — GRAIL vs flat vs backprop @ K ∈ {5,10,20}
+## Task 16: run_task1 harness — CEREBRUM vs flat vs backprop @ K ∈ {5,10,20}
 
 **Files:** Create `benchmarks/run_task1.py`; add the load-bearing test to `tests/test_task1_smoke.py`
 
-The decisive result: **GRAIL-grid beats flat-prior on graph-completion at small K** (Pillar-3 load-bearing), averaged over seeds. (Backprop comparison is reported but not asserted — the honest claim is sample-efficiency divergence, and the headline assertion is grid > flat.)
+The decisive result: **CEREBRUM-grid beats flat-prior on graph-completion at small K** (Pillar-3 load-bearing), averaged over seeds. (Backprop comparison is reported but not asserted — the honest claim is sample-efficiency divergence, and the headline assertion is grid > flat.)
 
 - [ ] **Step 1: Failing test (append):**
 ```python
-def test_grail_grid_beats_flat_prior_averaged():
+def test_cerebrum_grid_beats_flat_prior_averaged():
     from benchmarks.run_task1 import run_sweep
     res = run_sweep(Ks=(5,10,20), seeds=(0,1,2), h=4, w=4, vocab=5)
     for K in (5,10,20):
-        assert res["grail"][K] > res["flat"][K] + 0.05    # grid prior buys sample efficiency
+        assert res["cerebrum"][K] > res["flat"][K] + 0.05    # grid prior buys sample efficiency
 ```
 
 - [ ] **Step 2: Fail. Step 3: Implement** `benchmarks/run_task1.py`:
 ```python
 import numpy as np
-from grail.config import GRAILConfig
-from grail.network import GRAILCore
+from cerebrum.config import CerebrumConfig
+from cerebrum.network import CerebrumCore
 from benchmarks.tasks.gridworld import make_episode
-from benchmarks.tasks.graph_completion import run_grail_episode
+from benchmarks.tasks.graph_completion import run_cerebrum_episode
 from benchmarks.baselines.flat_prior import run_flat_episode
 from benchmarks.baselines.backprop_mlp import run_mlp_episode
 
 def run_sweep(Ks=(5,10,20), seeds=(0,1,2), h=4, w=4, vocab=5):
-    out = {"grail":{}, "flat":{}, "mlp":{}}
+    out = {"cerebrum":{}, "flat":{}, "mlp":{}}
     for K in Ks:
         g=[]; f=[]; m=[]
         for s in seeds:
             ep = make_episode(h=h, w=w, vocab=vocab, K=K, seed=s)
-            cfg = GRAILConfig(dims=(vocab,8,8), grid_n_modules=8, n_settle=10, seed=s)
-            g.append(run_grail_episode(GRAILCore(cfg), ep))
+            cfg = CerebrumConfig(dims=(vocab,8,8), grid_n_modules=8, n_settle=10, seed=s)
+            g.append(run_cerebrum_episode(CerebrumCore(cfg), ep))
             f.append(run_flat_episode(ep))
             m.append(run_mlp_episode(ep, epochs=80))
-        out["grail"][K]=float(np.mean(g)); out["flat"][K]=float(np.mean(f)); out["mlp"][K]=float(np.mean(m))
+        out["cerebrum"][K]=float(np.mean(g)); out["flat"][K]=float(np.mean(f)); out["mlp"][K]=float(np.mean(m))
     return out
 
 if __name__ == "__main__":
     res = run_sweep()
-    print(f"{'K':>4} {'GRAIL-grid':>12} {'flat-prior':>12} {'backprop-MLP':>14}")
-    for K in sorted(res['grail']):
-        print(f"{K:>4} {res['grail'][K]:>12.3f} {res['flat'][K]:>12.3f} {res['mlp'][K]:>14.3f}")
+    print(f"{'K':>4} {'CEREBRUM-grid':>12} {'flat-prior':>12} {'backprop-MLP':>14}")
+    for K in sorted(res['cerebrum']):
+        print(f"{K:>4} {res['cerebrum'][K]:>12.3f} {res['flat'][K]:>12.3f} {res['mlp'][K]:>14.3f}")
 ```
 - [ ] **Step 4: Run** `python3 -m pytest tests/test_task1_smoke.py -v` (PASS) **and** `python3 benchmarks/run_task1.py` to print the table. If grid does not beat flat, debug the bind/query `pos` consistency (Task 14 worker note) before weakening any assertion — the grid MUST win here or Pillar 3 is not wired correctly.
-- [ ] **Step 5: Commit** — `git commit -am "feat: Task-1 few-shot sweep (GRAIL vs flat vs backprop)"`
+- [ ] **Step 5: Commit** — `git commit -am "feat: Task-1 few-shot sweep (CEREBRUM vs flat vs backprop)"`
 
 ---
 
@@ -1128,7 +1128,7 @@ if __name__ == "__main__":
 
 **Files:** Create `README.md`; run full suite.
 
-- [ ] **Step 1:** Write `README.md` summarizing GRAIL (link the spec), the five pillars, the bans-as-invariants, and the honest status (scaling = unproven bet; zero open problems solved). Include the Task-1 result table from Task 16. State explicitly: **no claim of "scaling solved", "stability-plasticity solved", or "O(1) global comm" may be made.**
+- [ ] **Step 1:** Write `README.md` summarizing CEREBRUM (link the spec), the five pillars, the bans-as-invariants, and the honest status (scaling = unproven bet; zero open problems solved). Include the Task-1 result table from Task 16. State explicitly: **no claim of "scaling solved", "stability-plasticity solved", or "O(1) global comm" may be made.**
 - [ ] **Step 2:** Run the whole suite: `python3 -m pytest -q`. Expected: all green.
 - [ ] **Step 3:** Run `python3 benchmarks/run_task1.py` and paste the table into the README.
 - [ ] **Step 4: Commit** — `git commit -am "docs: README + Stage 0+1 complete (PC core + grid HEAD + few-shot win)"`
@@ -1149,6 +1149,6 @@ if __name__ == "__main__":
 
 **Placeholder scan:** every code step has complete code or a precise contract test; worker notes flag the two known-tricky spots (settling `f'` linearization; bind/query `pos` consistency) without leaving logic unspecified. ✓
 
-**Type consistency:** `weight_update(M, theta, Pi_post, eps_post, elig, eta)`, `precision_update(Pi, eps_sq, cfg)`, `feedback_update(B, a_up, eps, cfg)`, `GridHead.transition(Exogenous)`, `GRAILCore.observe_and_learn(obs, reward)`/`move(Exogenous)`/`predict_obs_here(obs_dim)` are used consistently across Tasks 8–16. ✓
+**Type consistency:** `weight_update(M, theta, Pi_post, eps_post, elig, eta)`, `precision_update(Pi, eps_sq, cfg)`, `feedback_update(B, a_up, eps, cfg)`, `GridHead.transition(Exogenous)`, `CerebrumCore.observe_and_learn(obs, reward)`/`move(Exogenous)`/`predict_obs_here(obs_dim)` are used consistently across Tasks 8–16. ✓
 
 **Intentional scope gaps (staged):** gate/workspace/broadcast (Stage 2), metaplasticity + Task-2 forgetting (Stage 3), full Task-3 energy curves (instrumented here, plotted later). These get their own plans.

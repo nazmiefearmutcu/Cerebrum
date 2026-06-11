@@ -2,12 +2,12 @@ import os
 import sys
 import numpy as np
 
-# Ensure grail package is importable
+# Ensure cerebrum package is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from grail.config import GRAILConfig
-from grail.unified import GRAILNet
-from grail.types import Exogenous
+from cerebrum.config import CerebrumConfig
+from cerebrum.unified import CerebrumNet
+from cerebrum.types import Exogenous
 from benchmarks.tasks.household import HouseholdEnvironment, ROOM_COORDS, COOR_TO_ROOM, ACTION_DISPLACEMENTS
 
 def preprocess_obs(obs):
@@ -233,14 +233,14 @@ def run_simulation(seed, pc_sparsity_threshold=0.4):
     env = HouseholdEnvironment()
     obs = env.reset(seed=seed)
 
-    cfg = GRAILConfig(
+    cfg = CerebrumConfig(
         dims=(5, 8, 8),
         grid_n_modules=4,
         n_settle=10,
         seed=seed,
         pc_sparsity_threshold=pc_sparsity_threshold
     )
-    net = GRAILNet(n_modules=4, k_slots=2, slice_dim=5, cfg=cfg)
+    net = CerebrumNet(n_modules=4, k_slots=2, slice_dim=5, cfg=cfg)
     net.grid.pos = np.array(ROOM_COORDS[env.agent_room], dtype=float)
 
     total_steps = 0

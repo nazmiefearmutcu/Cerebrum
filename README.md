@@ -1,14 +1,14 @@
-# GRAIL — Grid-Referenced Annealed Inference with Local plasticity
+# CEREBRUM — Grid-Referenced Annealed Inference with Local plasticity
 
-GRAIL is a **predictive-coding, backprop-free, fully-local-plasticity, neuromorphic-targeted**
+CEREBRUM is a **predictive-coding, backprop-free, fully-local-plasticity, neuromorphic-targeted**
 learning architecture, implemented in **pure NumPy** (no torch / jax / sklearn, no autograd).
 
 Inference, routing, and learning are all noisy gradient descent on **one** free-energy functional
 `F`, at three timescales. There is **no backpropagation, no weight transport, and no DFA** anywhere
-in the `grail/` package — every weight, feedback, and precision update is a hand-written local rule.
+in the `cerebrum/` package — every weight, feedback, and precision update is a hand-written local rule.
 
-> **Design spec:** [`docs/superpowers/specs/2026-06-08-grail-cortical-workspace-design.md`](docs/superpowers/specs/2026-06-08-grail-cortical-workspace-design.md)
-> **Implementation plan (Stage 0+1):** [`docs/superpowers/plans/2026-06-08-grail-stage0-1-pc-core-grid-head.md`](docs/superpowers/plans/2026-06-08-grail-stage0-1-pc-core-grid-head.md)
+> **Design spec:** [`docs/superpowers/specs/2026-06-08-cerebrum-cortical-workspace-design.md`](docs/superpowers/specs/2026-06-08-cerebrum-cortical-workspace-design.md)
+> **Implementation plan (Stage 0+1):** [`docs/superpowers/plans/2026-06-08-cerebrum-stage0-1-pc-core-grid-head.md`](docs/superpowers/plans/2026-06-08-cerebrum-stage0-1-pc-core-grid-head.md)
 
 This repository currently implements **Stage 0 + Stage 1 + Stage 2 + Stage 3**: the predictive-coding
 core (error neurons, stochastic Langevin settling, four-factor local plasticity, separate feedback
@@ -16,14 +16,14 @@ weights, diagonal precision) plus the structured grid generative HEAD, validated
 few-shot graph-completion task; the **cortical workspace** — a stochastic basal-ganglia gate, a
 `k≪n` workspace with strict one-hot write, and the thalamo-cortical broadcast loop, in which
 inter-module routing **emerges** with no attention matrix; and now the **surprise-gated metaplastic
-fuse** (`grail/metaplasticity.py`) — a per-synapse consolidation reserve `c` and plasticity-permission
+fuse** (`cerebrum/metaplasticity.py`) — a per-synapse consolidation reserve `c` and plasticity-permission
 `θ = σ(g(S − c))` driven by **local surprise only**, reusing the same `Π,ε,e` already computed for
 inference (no Fisher pass, no stored anchors, no task-boundary signal). The fuse **addresses** the
 stability-plasticity dilemma (OP3) — it is **NOT solved**: the `(θ,c)` loop is a tuned knife-edge with
 no stability proof (see *Stage-3 result* and *Honest status* below).
 
-The three staged prototypes are also wired together in **one coherent network**, `grail/unified.py`
-(`GRAILNet`), whose single `step(obs_slices, action, reward)` exercises **all five pillars together**:
+The three staged prototypes are also wired together in **one coherent network**, `cerebrum/unified.py`
+(`CerebrumNet`), whose single `step(obs_slices, action, reward)` exercises **all five pillars together**:
 grid-HEAD path-integration on an exogenous action → cortical-module settling under both the grid
 top-down and the workspace broadcast → scalar-bid stochastic one-hot gate / write / broadcast →
 metaplastic-`θ`-gated four-factor local plasticity, all gated by the single scalar `M`. It composes
@@ -36,7 +36,7 @@ add a new headline result or change any Stage-1/2/3 number.
 
 ## The five pillars
 
-| Pillar | Mechanism in GRAIL |
+| Pillar | Mechanism in CEREBRUM |
 |---|---|
 | **1. Predictive-coding substrate** | Each cortical area `l` has a physically separate error-neuron population `ε_l = x_l − ŷ_l`. Inference = activities settling to minimize precision-weighted error. Errors flow, not raw activations. |
 | **2. Fully-local plasticity** | Four-factor Hebbian `τ_w Ẇ = M·θ·Π·ε·e`; every factor is physically present at the synapse. The same `ε` that drives settling drives learning. |
@@ -48,15 +48,15 @@ add a new headline result or change any Stage-1/2/3 number.
 
 ## The bans — enforced as invariants in code
 
-These are not style preferences; they are the line that separates GRAIL from backprop / DFA /
+These are not style preferences; they are the line that separates CEREBRUM from backprop / DFA /
 weight-transport methods. A violation invalidates the project. They are enforced as executable
-assertions or structurally (see `grail/invariants.py`, `grail/types.py`, and the test suite).
+assertions or structurally (see `cerebrum/invariants.py`, `cerebrum/types.py`, and the test suite).
 
-1. **No backpropagation / no autograd** anywhere in `grail/`. Every update is a hand-written local
+1. **No backpropagation / no autograd** anywhere in `cerebrum/`. Every update is a hand-written local
    rule. (The only exception is `benchmarks/baselines/backprop_mlp.py`, a clearly-labeled baseline
-   *comparator* that is allowed manual backprop — it is not part of GRAIL.)
+   *comparator* that is allowed manual backprop — it is not part of CEREBRUM.)
 2. **No weight transport.** No update reads `Wᵀ`. Feedback uses a **separate** array `B`, an
-   independent object updated by its own local rule (`grail/plasticity.py`).
+   independent object updated by its own local rule (`cerebrum/plasticity.py`).
 3. **Scalar neuromodulator.** `M` is a scalar; no vector global signal ever enters a weight update
    (a vector global signal would be DFA).
 4. **Exogenous `z_act`.** The grid transition driver is strictly exogenous:
@@ -69,7 +69,7 @@ assertions or structurally (see `grail/invariants.py`, `grail/types.py`, and the
 
 ## Honest status — what is and is NOT solved
 
-GRAIL solves **zero** open problems. The architecture is a **bet**, and the riskiest part of that
+CEREBRUM solves **zero** open problems. The architecture is a **bet**, and the riskiest part of that
 bet is unproven.
 
 | Open problem | Honest status |
@@ -80,7 +80,7 @@ bet is unproven.
 | **Global coherence** | **Pressured, not guaranteed.** |
 | **Dead experts** | **Addressed, fragile in both directions.** No closed-form setpoint. |
 
-**Explicit non-claims (these may NEVER be asserted about GRAIL):**
+**Explicit non-claims (these may NEVER be asserted about CEREBRUM):**
 
 - ❌ No claim that **scaling is solved**. Scaling is an unproven bet; with `B ≠ Wᵀ` the update is
   not even a provable gradient.
@@ -111,13 +111,13 @@ column is reported for context but is **not** a headline claim.
 Reproduce with `python3 benchmarks/run_task1.py` (mean ± 95% CI over 5 seeds; chance = 1/vocab = 0.200):
 
 ```
-   K          GRAIL-grid          flat-prior        backprop-MLP
+   K          CEREBRUM-grid          flat-prior        backprop-MLP
    5     0.562 +/- 0.194     0.168 +/- 0.189     0.182 +/- 0.178
   10     0.381 +/- 0.079     0.189 +/- 0.085     0.230 +/- 0.164
   20     0.338 +/- 0.056     0.225 +/- 0.073     0.228 +/- 0.168
 ```
 
-GRAIL-grid beats the flat prior at every `K` (the Pillar-3 win), and at `K=10` and `K=20` the
+CEREBRUM-grid beats the flat prior at every `K` (the Pillar-3 win), and at `K=10` and `K=20` the
 intervals are cleanly separated; at `K=5` the per-seed variance is high (some random graphs are
 easy, some hard) so the large mean gap carries a wide CI. This is a small structured task,
 not evidence of scaling — see *Honest status* above.
@@ -126,7 +126,7 @@ not evidence of scaling — see *Honest status* above.
 
 ## Stage-2 result — does routing *emerge* without an attention matrix?
 
-Stage 2 adds the **cortical workspace** (`grail/gate.py`, `grail/workspace.py`, `grail/network2.py`):
+Stage 2 adds the **cortical workspace** (`cerebrum/gate.py`, `cerebrum/workspace.py`, `cerebrum/network2.py`):
 `M` predictive-coding modules each settle on their own input slice; each emits a **scalar own-error
 bid** `b_m = π_m·E[‖ε_m‖²] + θ_m`; a striatal Go/NoGo gate draws a **stochastic strict-one-hot**
 winner per workspace slot (Gumbel-argmax = exact softmax sample, never a plain argmax); the winner's
@@ -182,7 +182,7 @@ content-gated continuous mixer (a gated-SSM / linear-attention/Mamba-class ident
 discreteness is load-bearing, not cosmetic.**
 
 **Honesty gate (unchanged).** This stage still solves **zero** open problems. The architectural finding
-is that GRAIL's no-query-key gate does **salience-driven + fixed-preference** routing (not content-
+is that CEREBRUM's no-query-key gate does **salience-driven + fixed-preference** routing (not content-
 addressed routing — that would be attention, which is banned); on this small task the routing numbers
 are a property of the bid signal + selection temperature, **not** evidence of scaling. Infer-time
 broadcast traffic is **not** O(1); only the learn-time scalar `M` is.
@@ -191,7 +191,7 @@ broadcast traffic is **not** O(1); only the learn-time scalar `M` is.
 
 ## Stage-3 result — does the metaplastic fuse mitigate catastrophic forgetting?
 
-Stage 3 adds the **surprise-gated metaplastic fuse** (`grail/metaplasticity.py`). Each synapse keeps a
+Stage 3 adds the **surprise-gated metaplastic fuse** (`cerebrum/metaplasticity.py`). Each synapse keeps a
 slow consolidation reserve `c` and a surprise baseline `S̄`; it reads the **same** precision-weighted
 error-eligibility magnitude `S_raw = |Π·ε·e|` that already drives inference, forms a relative surprise
 `S = S_raw − S̄`, lets **below-baseline (predictive) activity build `c`** and **above-baseline (surprising)
@@ -199,7 +199,7 @@ activity erode `c`**, and emits a per-synapse plasticity permission `θ = σ(g(S
 multiplies the four-factor weight rule. Low surprise → `c↑, θ↓` (the synapse freezes, protecting prior
 tasks); high surprise → `c↓, θ↑` (the synapse reopens, learn-on-surprise). **There is no Fisher pass, no
 stored anchor weights, and no task-boundary signal to the fuse** — those belong only to the EWC-analog
-*baseline* GRAIL aims to match without them.
+*baseline* CEREBRUM aims to match without them.
 
 **The load-bearing claim: the fuse reduces forgetting vs always-plastic local learning, while still
 learning the later task, without replay/iid/Fisher/anchors.** We run a sequential reconstruction stream
@@ -216,7 +216,7 @@ knob set** — no per-task/per-seed retuning — and a **noise-free (T=0) measur
 
 ```
 method                       forgetA         errC_afterC
-GRAIL-fuse           0.055 +/- 0.039     0.943 +/- 0.127   (cbar=0.93)
+CEREBRUM-fuse           0.055 +/- 0.039     0.943 +/- 0.127   (cbar=0.93)
 always-plastic       0.557 +/- 0.178     0.635 +/- 0.089
 EWC-analog           0.109 +/- 0.047     0.864 +/- 0.140   (+Fisher pass +anchors)
 
@@ -230,7 +230,7 @@ The fuse cuts mean forgetting to about **a tenth** of always-plastic (0.055 vs 0
 `errC_afterC` 0.943 < `errC_beforeC`). The result is now **robust across 8 seeds with a single fixed
 knob set**: the fuse is lower on **every** seed and the 95% `forgetA` CIs are **cleanly separated**
 (fuse upper bound 0.094 < always-plastic lower bound 0.379). It is **competitive with the EWC-analog**
-(GRAIL-fuse forgetA 0.055 is even below EWC's 0.109) *without* EWC's Fisher pass or stored anchors —
+(CEREBRUM-fuse forgetA 0.055 is even below EWC's 0.109) *without* EWC's Fisher pass or stored anchors —
 EWC retains a small edge on C-learning (`errC_afterC` 0.864 vs 0.943).
 
 **What changed vs the earlier overlapping-CI table (honest).** The fuse mechanism is **unchanged**;
@@ -252,7 +252,7 @@ a guarantee for arbitrary new tasks, harder streams, or knob settings.
 `(θ,c)` loop is a **tuned knife-edge**, not a proof. It is exactly spec failure-mode **FM4**, with **two**
 ways to fall off: **catastrophic forgetting** (if `θ` never closes, A is overwritten) and **plastic-death**
 (if `θ` never reopens, B/C cannot be learned). The numbers above hold at the working config knobs
-(`tau_S, tau_c, alpha_c, beta_c, c_max, g_theta` in `grail/config.py`); there is **no stability proof** and
+(`tau_S, tau_c, alpha_c, beta_c, c_max, g_theta` in `cerebrum/config.py`); there is **no stability proof** and
 **no guarantee** of robustness to new tasks/seeds without tuning. **We do NOT claim "stability-plasticity
 solved."** This stage solves **zero** open problems; it demonstrates **forgetting reduction without
 replay/iid/Fisher/anchors**, which is the only success axis claimed here.
@@ -268,7 +268,7 @@ replay/iid/Fisher/anchors**, which is the only success axis claimed here.
 > CIs over 8 seeds, **exactly where the brain-axis advantages hold and where they break**. We
 > make **no "scaling solved" claim.** Reproduce with `python3 benchmarks/run_scaling.py`.
 
-### Frontier map at a glance (where GRAIL holds vs breaks)
+### Frontier map at a glance (where CEREBRUM holds vs breaks)
 
 | Probe | Axis | Verdict | Why (one line) |
 |---|---|---|---|
@@ -281,7 +281,7 @@ replay/iid/Fisher/anchors**, which is the only success axis claimed here.
 | Factorized latent + compositional | the central bet (OP1) | **HOLDS (corrected)** | linear-probe: held-out `f1`/`f2` decode **0.92 ± 0.05** (chance 0.167), beats untrained/random-proj; the old `f1→f2` *completion* null was a degenerate readout (§g) |
 | More factors / cardinality (K→4, card→8) | the central bet, scaled | **HOLDS over chance + over init; learned-over-input margin BREAKS by card≈8** | held-out per-factor decode stays far above chance & above the untrained latent at every K≤4/card≤8 (margin over init *grows* +0.07→+0.13); but the margin over a random-projection of the obs shrinks +0.05→+0.00 as cardinality grows — at high card the trivially-factorable concat input is decodable by any same-dim linear map (§g2) |
 | Systematic vs interpolative hold-out (C2-HardSplits) | the central bet, systematicity | **SYSTEMATIC on the learned margin (well-powered card=8)** | the paired learned margin (trained−untrained, within-seed) stays CI-clean **positive** under *leave-a-value-in-few-contexts* (+0.12) and *structured-block* hold-out (+0.15) — actually **larger** than the random/interpolation split (+0.08); absolute decode drops under sparse context (a noisier class-mean for an oracle too), but the factored subspace transfers across contexts; learned-over-*input* is ≈0 (same input ceiling as §g2) (§g3) |
-| Factorization in the FULL pipeline (C3-FullPipeline) | robustness of the central bet to the whole system | **SURVIVES +broadcast/+fuse; grid-topdown competition FIXED; full-GRAILNet still open** | decode stays 0.92→0.91 with broadcast/fuse; the grid top-down originally collapsed it to 0.47 (its never-decayed store, \|x\|≈47, dominated the top area), now **FIXED by the opt-in `balance_grid_precision` precision-gain → +grid recovers to 0.910 with grid few-shot byte-identical**; the **full GRAILNet residual (0.11→0.28) is an honest OPEN issue** — refuted as under-training (fast eta+150 passes doesn't recover it), a deeper grid+gate+workspace interaction (§g4) |
+| Factorization in the FULL pipeline (C3-FullPipeline) | robustness of the central bet to the whole system | **SURVIVES +broadcast/+fuse; grid-topdown competition FIXED; full-CerebrumNet still open** | decode stays 0.92→0.91 with broadcast/fuse; the grid top-down originally collapsed it to 0.47 (its never-decayed store, \|x\|≈47, dominated the top area), now **FIXED by the opt-in `balance_grid_precision` precision-gain → +grid recovers to 0.910 with grid few-shot byte-identical**; the **full CerebrumNet residual (0.11→0.28) is an honest OPEN issue** — refuted as under-training (fast eta+150 passes doesn't recover it), a deeper grid+gate+workspace interaction (§g4) |
 
 **Reading:** the demonstrated sample-efficiency win lives specifically in the **frozen metric structured
 prior** (and scales there); the **local learning rule does build a compositionally-generalizing factored
@@ -291,10 +291,10 @@ tuned knife-edge**. This is the honest state of the central bet — strengths an
 
 ### (a) Task-1 few-shot graph-completion on bigger gridworlds / larger vocab
 
-Held-out edge-completion accuracy (mean ± 95% CI, 8 seeds; GRAIL-grid vs flat-prior vs the
+Held-out edge-completion accuracy (mean ± 95% CI, 8 seeds; CEREBRUM-grid vs flat-prior vs the
 backprop-MLP comparator):
 
-| size | K | GRAIL-grid | flat-prior | backprop-MLP | chance |
+| size | K | CEREBRUM-grid | flat-prior | backprop-MLP | chance |
 |---|---|---|---|---|---|
 | 4×4 v5  | 5  | **0.579 ± 0.187** | 0.161 ± 0.116 | 0.203 ± 0.165 | 0.200 |
 | 4×4 v5  | 20 | **0.390 ± 0.085** | 0.228 ± 0.042 | 0.262 ± 0.116 | 0.200 |
@@ -306,7 +306,7 @@ backprop-MLP comparator):
 **Verdict (honest):** the grid-prior advantage **does not shrink as the graph grows — it
 holds, and the mean margin over the best baseline actually *grows* with grid size** (≈+0.38 at
 4×4 K=5 → ≈+0.50 at 8×8 K=5), because flat-prior and the MLP both decay toward chance as the
-graph gets larger while GRAIL still path-integrates unobserved edges. The advantage is **CI-
+graph gets larger while CEREBRUM still path-integrates unobserved edges. The advantage is **CI-
 separated at every K on 8×8** and at low K on 6×6/4×4. What **shrinks is the margin as K rises**
 (more observations let the baselines memorise more walked edges), so on the *small* 4×4 graph at
 K=20 the CIs overlap — that is the expected "few-shot edge erodes with more data" boundary, **not**
@@ -318,7 +318,7 @@ graphs.** (Still a small regime overall — no large-scale claim.)
 Forgetting of the **first** task A (rise in its reconstruction error) measured after **each**
 further task is learned, fuse vs always-plastic (mean ± 95% CI, 8 seeds; lower = better):
 
-| after… | GRAIL-fuse | always-plastic |
+| after… | CEREBRUM-fuse | always-plastic |
 |---|---|---|
 | +1 task (B)         | **0.029 ± 0.031** | 0.435 ± 0.142 |
 | +2 tasks (B,C)      | **0.055 ± 0.039** | 0.557 ± 0.178 |
@@ -364,7 +364,7 @@ sides of that bias on purpose (`python3 benchmarks/run_relational.py`, `run_tran
 **directed** graph (edges don't commute; a node is reachable by paths whose action-vector sums differ),
 the grid advantage collapses:
 
-| task | K | GRAIL-grid | flat-prior | backprop-MLP | chance |
+| task | K | CEREBRUM-grid | flat-prior | backprop-MLP | chance |
 |---|---|---|---|---|---|
 | **metric** gridworld | 10 | **0.381 ± 0.079** | 0.189 ± 0.085 | 0.230 ± 0.164 | 0.20 |
 | **non-metric** digraph | 10 | 0.322 ± 0.032 | 0.233 ± 0.100 | 0.335 ± 0.140 | 0.20 |
@@ -373,17 +373,17 @@ the grid advantage collapses:
 | **directed tree** (hierarchy) | 10 | 0.425 ± 0.219 | **0.643 ± 0.123** | 0.338 ± 0.228 | 0.20 |
 | **directed tree** (hierarchy) | 20 | 0.344 ± 0.233 | **0.462 ± 0.102** | 0.376 ± 0.234 | 0.20 |
 
-On the metric task GRAIL is ~2× flat-prior and beats the MLP; on the non-metric graphs (both the random digraph and the directed tree hierarchy) the grid advantage completely collapses. In the directed tree/hierarchy graph, the **flat-prior baseline significantly outperforms both GRAIL and the MLP**.
+On the metric task CEREBRUM is ~2× flat-prior and beats the MLP; on the non-metric graphs (both the random digraph and the directed tree hierarchy) the grid advantage completely collapses. In the directed tree/hierarchy graph, the **flat-prior baseline significantly outperforms both CEREBRUM and the MLP**.
 
 **Why (Failure Mode 7 - FM7):**
 1. **Grid Rotations Algebra Conflict**: The grid HEAD integrates exogenous path steps linearly in a 2D Euclidean coordinate system ($\mathbf{x}_{\text{next}} = \mathbf{x} + \mathbf{v}$). This forces transition compositions to commute ($v_{left} + v_{right} = v_{right} + v_{left}$). On a directed hierarchy, transitions do not commute (left-then-right lands on node 4, right-then-left lands on node 5). This forces the grid prior to map distinct nodes to identical grid codes, causing severe spatial aliasing.
 2. **Loop-Closure Contradiction**: Returning to a parent node from left/right children requires $v_{left} + v_{parent} = \mathbf{0}$ and $v_{right} + v_{parent} = \mathbf{0}$, implying $v_{left} = v_{right}$, which collapses the left/right branches into a single line. A non-metric hierarchy has no consistent coordinate system that can satisfy loop-closures without collapsing the graph structure.
-3. **Start-Target Overlap Phenomenon**: On short walks in a tree (e.g. $K=5$, $K=10$), a high proportion of 2-hop compositions loop back to the start node (e.g., child then parent; ~60.7% for $K=5$, ~55.4% for $K=10$). Since the `flat-prior` baseline simply returns the start node's observation, it achieves high accuracy on these looping queries. However, GRAIL's vector accumulation drifts due to the loop-closure contradiction, resulting in incorrect grid codes and lower recall.
+3. **Start-Target Overlap Phenomenon**: On short walks in a tree (e.g. $K=5$, $K=10$), a high proportion of 2-hop compositions loop back to the start node (e.g., child then parent; ~60.7% for $K=5$, ~55.4% for $K=10$). Since the `flat-prior` baseline simply returns the start node's observation, it achieves high accuracy on these looping queries. However, CEREBRUM's vector accumulation drifts due to the loop-closure contradiction, resulting in incorrect grid codes and lower recall.
 
 **Transitive inference (a metric/linear order) → the prior HOLDS, distinctively at scale.** Train on
 ADJACENT pairs only (A>B, B>C, …), test never-co-observed NON-adjacent pairs (B vs D):
 
-| axis | GRAIL-grid | flat-prior | backprop-MLP |
+| axis | CEREBRUM-grid | flat-prior | backprop-MLP |
 |---|---|---|---|
 | N=7 order | **1.000 ± 0.000** | 0.587 ± 0.283 | 1.000 ± 0.000 |
 | N=15 order | **1.000 ± 0.000** | 0.488 ± 0.212 | 0.954 ± 0.038 |
@@ -393,16 +393,16 @@ The grid places items on a line by exogenous path-integration and reads off the 
 on every seed independent of order length. **Honest caveat (not hidden):** at the easy size N=7 the
 backprop-MLP *also* hits 1.000 (the genuine connectionist transitive-inference effect), so the grid is
 not *distinctively* better there; the real separation appears only in the **discriminating regime** —
-at N=25 the MLP decays to 0.634 while GRAIL stays at 1.000, because GRAIL's comparison is O(1) in chain
+at N=25 the MLP decays to 0.634 while CEREBRUM stays at 1.000, because CEREBRUM's comparison is O(1) in chain
 length whereas the MLP must couple distant constraints through a fixed adjacent-supervision budget.
 
 ### (e) Larger metric graphs (12×12, 16×16) — the few-shot margin HOLDS and *widens*
 
-`python3 benchmarks/run_largegraph.py` (8 seeds, 95% CI, chance = 1/vocab). GRAIL-grid's margin over
+`python3 benchmarks/run_largegraph.py` (8 seeds, 95% CI, chance = 1/vocab). CEREBRUM-grid's margin over
 the better baseline is CI-separated at **every** K and size, and the absolute margin *grows* with grid
-size (baselines decay toward a falling chance floor while GRAIL keeps path-integrating unobserved edges):
+size (baselines decay toward a falling chance floor while CEREBRUM keeps path-integrating unobserved edges):
 
-| size | K=10 GRAIL / best-baseline | K=20 GRAIL / best-baseline | margin (K=10 → K=20) |
+| size | K=10 CEREBRUM / best-baseline | K=20 CEREBRUM / best-baseline | margin (K=10 → K=20) |
 |---|---|---|---|
 | 8×8 v10 | 0.445 / 0.138 | 0.392 / 0.138 | +0.31 → +0.25 |
 | 12×12 v12 | 0.535 / 0.173 | 0.348 / 0.154 | +0.36 → +0.19 |
@@ -455,7 +455,7 @@ the *task*, not the model. (`python3 benchmarks/run_compositional.py`, 5 seeds, 
 the **same local four-factor rule** on a subset of `(f1,f2)` combos; settle each obs noise-free (T=0) and read
 `x[top]`; **fit a linear readout (nearest-class-mean *and* a logistic/softmax classifier) on SEEN combos and
 evaluate factor-decoding accuracy on HELD-OUT combos.** The readout is a *measurement probe only* (exactly
-like the existing `backprop_mlp` comparator) — GRAIL itself does no backprop and is unmodified; the
+like the existing `backprop_mlp` comparator) — CEREBRUM itself does no backprop and is unmodified; the
 representation it reads was learned **entirely by the local rule**. This asks the right question: *can each
 factor be read off the latent for combinations never trained?* `python3 benchmarks/run_factorization.py`
 (A=B=6, dims=(obs,24,24), 5 seeds, **chance 0.167**, 26 train / 10 held-out combos; held-out **factor-decode
@@ -463,7 +463,7 @@ accuracy**, mean of `f1` and `f2`, averaged over the two probes):
 
 | condition (held-out factor decode) | accuracy (95% CI) | what it shows |
 |---|---|---|
-| **GRAIL TRAINED latent** | **0.920 ± 0.051** | the local rule's learned code |
+| **CEREBRUM TRAINED latent** | **0.920 ± 0.051** | the local rule's learned code |
 | UNTRAINED same-arch latent | 0.825 ± 0.038 | architecture bias, *no* learning |
 | RAW obs (concat — partly trivial) | 0.925 ± 0.076 | input is already linearly factorable |
 | RANDOM-PROJECTION of obs (latent dim) | 0.850 ± 0.108 | generic linear map, *no* learning |
@@ -563,9 +563,9 @@ Every cell is from the actual numbers; nothing is engineered to win.
 
 §g–§g3 measured the factored latent on a **bare** `PCAreas` trained by the local rule. C3 asks the
 **robustness** question: does that 0.92 held-out factor-decode survive when the *same* cortical module
-operates inside the richer `grail/unified.GRAILNet` dynamics — with the **grid-HEAD structural top-down**
+operates inside the richer `cerebrum/unified.CerebrumNet` dynamics — with the **grid-HEAD structural top-down**
 active, and/or the **thalamo-cortical workspace broadcast** feeding back, and/or the **surprise-gated
-metaplastic fuse** gating the local plasticity — individually and **all together** (the literal `GRAILNet`,
+metaplastic fuse** gating the local plasticity — individually and **all together** (the literal `CerebrumNet`,
 `n_modules=1`)? Same linear-probe measurement, same **untrained** (same arch + same pipeline pieces, no
 plasticity) and **random-projection** controls. The `bare` condition is verified **bit-for-bit identical** to
 `run_factorization.py`'s `_train_pc` (so the comparison is honest, not a reimplementation).
@@ -578,23 +578,23 @@ combined NCM+logistic probe, held-out factor-avg decode; chance 0.167):
 | broadcast | workspace efference copy → bottom area | **0.915 ± 0.064** | 0.825 | 0.850 | 0.125 | **SURVIVES** (beats untrained) |
 | fuse | metaplastic θ∈[0,1] gates the four-factor update | **0.910 ± 0.047** | 0.825 | 0.850 | 0.142 | **SURVIVES** (beats untrained) |
 | grid | grid-HEAD structural top-down at the TOP area | 0.465 ± 0.078 | 0.825 | 0.850 | **47.2** | **BREAKS** (below untrained — learning *degrades* it) |
-| full | grid + gate + workspace + fuse (real `GRAILNet`) | 0.110 ± 0.017 | 0.315 | 0.850 | **20.9** | **BREAKS** (collapses to chance) |
+| full | grid + gate + workspace + fuse (real `CerebrumNet`) | 0.110 ± 0.017 | 0.315 | 0.850 | **20.9** | **BREAKS** (collapses to chance) |
 
 **Verdict: factorization is robust to the broadcast and the fuse, but the grid top-down (and therefore the
-full GRAILNet) DESTROYS it.** This is an honest, mechanistically-explained split — not a uniform win and not a
+full CerebrumNet) DESTROYS it.** This is an honest, mechanistically-explained split — not a uniform win and not a
 uniform loss.
 
 **Mechanism (read straight off the `|x|` column):** the bare cortical latent is a **small, sparse,
 obs-driven code** (`|x|≈0.12`; the L1 settling prior keeps it quiet, and the factor structure lives in that
 small signal). The **broadcast** enters only the *bottom* area as a prediction scaled to the obs, and the
 **fuse** only *shrinks* the weight update (θ≤1) — neither perturbs the obs-driven latent, so the decode and
-the latent norm are unchanged and factorization **survives**. The **grid top-down** is different: `GRAILNet`
+the latent norm are unchanged and factorization **survives**. The **grid top-down** is different: `CerebrumNet`
 binds the observation into the grid HEAD's Hebbian **content store** every step (reward-PE-gated, so it tapers
 — but it is **never decayed**), accumulating a store whose structural top-down prediction has **norm ≈ 47, ~400×
 the bare latent**. That prediction is consumed at the module's **top area**, so the latent is driven to track
 **per-combo grid PHASE** (a path-integrated structural code) instead of the obs factors — the `|x|` blow-up
 *tracks* the decode collapse to 0.47, and it falls **below the untrained latent**, i.e. learning under a
-dominating structural prior actively *worsens* the linearly-decodable factor code. The **full GRAILNet** stacks
+dominating structural prior actively *worsens* the linearly-decodable factor code. The **full CerebrumNet** stacks
 the grid prior with the gate/workspace recurrence and collapses to chance (0.11). **Takeaway:** the
 representation win is a property of the **isolated cortical module under the local rule**, *not* of the whole
 integrated system as currently wired — the structured grid prior and the cortical factorizer **compete for the
@@ -613,18 +613,18 @@ top-down prediction; it only rescales the cortical top-error, never the grid's o
 specific mechanism the probe named — the grid store dominating the top area — is fixed, and the two levers
 **do cooperate on the isolated grid axis**.
 
-**But the FULL GRAILNet residual is NOT yet resolved, and it is NOT under-training (refuted).** With the fix on,
+**But the FULL CerebrumNet residual is NOT yet resolved, and it is NOT under-training (refuted).** With the fix on,
 `full` rises only 0.11 → 0.28 (≈ untrained); the grid no longer dominates (`|x|` 20.9 → 0.4), yet the factor
-code still does not form. We tested the natural "it just under-trains" explanation (GRAILNet's default
-`eta_w/τ_w ≈ 1e-4` is ~200× slower than the probe's): **running the full GRAILNet at the fast `eta≈0.6` and up to
+code still does not form. We tested the natural "it just under-trains" explanation (CerebrumNet's default
+`eta_w/τ_w ≈ 1e-4` is ~200× slower than the probe's): **running the full CerebrumNet at the fast `eta≈0.6` and up to
 150 passes does NOT recover it** (decode stays ~0.29 ≈ untrained). So the residual is a **deeper interaction of
-grid + gate + workspace as `GRAILNet.step` wires them together** — each piece *alone* preserves factorization
+grid + gate + workspace as `CerebrumNet.step` wires them together** — each piece *alone* preserves factorization
 (with the fix), but the full integration still erases it for a reason beyond top-area domination and beyond
 learning budget. This is an **honest open issue**, not a solved one — the next investigation is which specific
 coupling in the unified step (broadcast-into-bottom during training, gate dynamics, or the settle/learn order)
 disrupts the obs-driven code.
 
-**Frontier summary so far:** GRAIL's structured prior is a *metric* inductive bias. It **wins big and
+**Frontier summary so far:** CEREBRUM's structured prior is a *metric* inductive bias. It **wins big and
 scales** on metric/linear relational structure (gridworld few-shot — margin holds and widens to 16×16;
 transitive order — advantage grows with order length), and **degrades to baseline** on non-metric/
 asymmetric structure (directed graphs, FM7). The metaplastic fuse **reduces first-task forgetting**
@@ -639,7 +639,7 @@ is a **linear-decodability** correction (the latent *represents* the factors wel
 that the local rule alone solves arbitrary compositional generalization; one configuration (Kolen-Pollack
 alignment) even *degrades* it. And that factored latent is a property of the **isolated cortical module** — it
 **survives the workspace broadcast and the metaplastic fuse but is DESTROYED by the grid top-down and the full
-`GRAILNet`** (C3-FullPipeline, §g4): the structured grid prior's never-decayed content store dominates the top
+`CerebrumNet`** (C3-FullPipeline, §g4): the structured grid prior's never-decayed content store dominates the top
 area and the latent reads grid phase, not the obs factors. So the factorizer and the structured prior are two
 **separate, not-yet-cooperating** sample-efficiency levers. Strengths and limits both mapped.
 
@@ -680,7 +680,7 @@ neither the spec's strong "load-bearing" claim nor a flat dismissal.
 
 ## Task-3 result — energy / operations (success axis 2)
 
-GRAIL is event-driven: an error neuron only "spikes" (and drives its synapses) when its prediction
+CEREBRUM is event-driven: an error neuron only "spikes" (and drives its synapses) when its prediction
 error exceeds threshold, so **dynamic switching energy decays as the network becomes competent**
 (`ε → 0` ⇒ silent units ⇒ fewer synaptic ops). The learning signal that crosses the whole network is a
 **single scalar** `M`, versus a backprop network's per-layer error **vector** (`O(depth)` elements).
@@ -699,7 +699,7 @@ the metric reflects systematic error, not the Langevin noise floor):
 As competence rises, **recon_err falls ~4.5×** and the magnitude-weighted **dynamic switching energy
 falls ~2.1×**; the thresholded spike-sparsity@0.1 falls modestly (0.83 → 0.63). Meanwhile a matched
 **dense backprop** net does **320 MAC ops/step with `ρ=1` (no decay)**, and its learn-time global
-communication is **16 error-vector elements (`O(depth)`)** versus GRAIL's **1 scalar `M`**.
+communication is **16 error-vector elements (`O(depth)`)** versus CEREBRUM's **1 scalar `M`**.
 
 **Honesty gate.** Only the **dynamic** switching term decays — **static/leakage power and settle-time
 energy do NOT** decay with competence, and the iterative settling can *cost more* steps precisely when
@@ -713,8 +713,8 @@ and the infer-time broadcast traffic is **not** O(1).
 ## Repository layout
 
 ```
-grail/grail/        # the GRAIL package (pure NumPy, no autograd)
-  config.py         # GRAILConfig — all hyperparameters
+cerebrum/cerebrum/        # the CEREBRUM package (pure NumPy, no autograd)
+  config.py         # CerebrumConfig — all hyperparameters
   rng.py            # SeededRNG — reproducible, zeroable noise
   types.py          # Exogenous wrapper (enforces z_act exogeneity by construction)
   invariants.py     # BAN-1/2/3 executable assertions
@@ -724,14 +724,14 @@ grail/grail/        # the GRAIL package (pure NumPy, no autograd)
   plasticity.py     # eligibility traces, four-factor weight rule, feedback-B rule, precision rule
   neuromod.py       # scalar neuromodulator M and couplings
   grid_head.py      # structured grid prior: frozen modules, path integration, content store
-  network.py        # GRAILCore (Stage 1: PC areas + grid HEAD, NO gate yet)
+  network.py        # CerebrumCore (Stage 1: PC areas + grid HEAD, NO gate yet)
   gate.py           # Stage 2: BasalGangliaGate — scalar bids, striatal Go/NoGo, stochastic one-hot select, local 3-factor learn, dead-expert homeostasis
   workspace.py      # Stage 2: Workspace — k slots, strict one-hot write, broadcast (efference copy)
-  network2.py       # Stage 2: GRAILWorkspaceNet — M modules + gate + workspace + broadcast loop (routing emerges)
+  network2.py       # Stage 2: CerebrumWorkspaceNet — M modules + gate + workspace + broadcast loop (routing emerges)
   metaplasticity.py # Stage 3: MetaplasticFuse — per-synapse consolidation reserve c + surprise baseline S̄ + plasticity permission θ=σ(g(S−c)); reuses Π,ε,e (no Fisher/anchors/task-boundary)
-  unified.py        # GRAILNet — ONE network exercising ALL FIVE pillars: grid HEAD path-integration (exogenous) → PC-module settling under grid top-down + workspace broadcast → scalar-bid one-hot gate/write/broadcast → metaplastic-θ-gated four-factor module plasticity + gate learning + reward-aware homeostasis, all gated by the single scalar M; composes the staged modules (no logic duplicated)
-grail/tests/        # unit + invariant + load-bearing tests (incl. gate/workspace/network2/stage2-smoke, metaplasticity, stage3-smoke)
-grail/benchmarks/   # Task-1 + Stage-2 binding task + Stage-3 continual A→B→C; baselines (flat-prior, backprop-MLP, soft-mixer ablation, EWC-analog); run_task1.py, run_stage2.py, run_stage3.py
+  unified.py        # CerebrumNet — ONE network exercising ALL FIVE pillars: grid HEAD path-integration (exogenous) → PC-module settling under grid top-down + workspace broadcast → scalar-bid one-hot gate/write/broadcast → metaplastic-θ-gated four-factor module plasticity + gate learning + reward-aware homeostasis, all gated by the single scalar M; composes the staged modules (no logic duplicated)
+cerebrum/tests/        # unit + invariant + load-bearing tests (incl. gate/workspace/network2/stage2-smoke, metaplasticity, stage3-smoke)
+cerebrum/benchmarks/   # Task-1 + Stage-2 binding task + Stage-3 continual A→B→C; baselines (flat-prior, backprop-MLP, soft-mixer ablation, EWC-analog); run_task1.py, run_stage2.py, run_stage3.py
   run_scaling.py    # I6 honest scaling probe: Task-1 on bigger grids/vocab, forgetting over A→B→C→D→E, deeper PC hierarchies — reports per-axis HOLDS/PARTIAL/BREAKS with CIs (UNPROVEN bet, no scaling-solved claim)
 ```
 
@@ -740,7 +740,7 @@ grail/benchmarks/   # Task-1 + Stage-2 binding task + Stage-3 continual A→B→
 ## Running
 
 ```bash
-cd grail
+cd cerebrum
 python3 -m pytest -q            # full test suite (no external deps beyond numpy)
 python3 benchmarks/run_task1.py    # print the Task-1 (grid prior / sample efficiency) result table
 python3 benchmarks/run_stage2.py   # print the Stage-2 (emergent routing + one-hot-vs-soft) result table

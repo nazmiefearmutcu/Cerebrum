@@ -1,5 +1,5 @@
 import numpy as np
-from grail.counters import Counters
+from cerebrum.counters import Counters
 
 def test_counts_learn_and_infer_separately():
     c = Counters()
@@ -23,11 +23,11 @@ def test_dense_vs_dynamic_ops_recording():
     assert c.synaptic_ops == 20  # synaptic_ops alias tracks dynamic ops
 
 def test_pc_core_sparsity_excludes_x0():
-    from grail.config import GRAILConfig
-    from grail.pc_core import PCAreas
-    from grail.rng import SeededRNG
+    from cerebrum.config import CerebrumConfig
+    from cerebrum.pc_core import PCAreas
+    from cerebrum.rng import SeededRNG
     
-    cfg = GRAILConfig(dims=(5, 8, 8), seed=0)
+    cfg = CerebrumConfig(dims=(5, 8, 8), seed=0)
     net = PCAreas(cfg)
     c = Counters()
     

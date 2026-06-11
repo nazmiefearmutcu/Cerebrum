@@ -23,7 +23,7 @@ HARDER regimes along three stress views and honestly maps the knife-edge:
                                      its statistical guarantee once the surprising-task budget
                                      grows.
 
-For every cell we compare GRAIL-fuse vs always-plastic (theta==1) over >=8 seeds with a T=0
+For every cell we compare CEREBRUM-fuse vs always-plastic (theta==1) over >=8 seeds with a T=0
 noise-free measurement readout, reporting mean +/- 95% CI. The success criterion of this probe
 is NOT "the fuse always wins" — it is to find and explain the break. Two FM4 signals are tracked:
   * forget-break    : fuse forgetA CI no longer SEPARATED below always-plastic (protection lost).
@@ -131,7 +131,7 @@ def plastic_death_tax():
 
 
 if __name__ == "__main__":
-    print(f"GRAIL FM4 HARD continual-forgetting probe -- {len(SEEDS)} seeds, T=0 noise-free eval, SINGLE FIXED knob set")
+    print(f"CEREBRUM FM4 HARD continual-forgetting probe -- {len(SEEDS)} seeds, T=0 noise-free eval, SINGLE FIXED knob set")
     print("(no per-task retuning; fuse uses only local Pi/eps/eligibility -- no Fisher pass / anchors / task-boundary)")
     len_rows = axis_length()
     sim_rows = axis_similarity()

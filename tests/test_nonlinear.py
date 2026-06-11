@@ -1,5 +1,5 @@
 import numpy as np
-from grail.nonlinear import g_act, g_deriv
+from cerebrum.nonlinear import g_act, g_deriv
 
 def test_tanh_values():
     u = np.array([-1.0, 0.0, 1.0])

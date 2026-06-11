@@ -19,4 +19,4 @@ def test_ewc_baseline_runs_and_reduces_forgetting():
     ewc     = run_continual_ewc(seed=0)
     plastic = run_continual(use_fuse=False, seed=0)
     assert ewc["forgetA"] < plastic["forgetA"]    # EWC also reduces forgetting (sanity: the task is learnable-retainable)
-    assert ewc["used_fisher_pass"] is True         # EWC requires the extra importance pass GRAIL avoids
+    assert ewc["used_fisher_pass"] is True         # EWC requires the extra importance pass CEREBRUM avoids

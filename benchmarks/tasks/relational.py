@@ -3,7 +3,7 @@
 This is the adversarial sibling of Task-1 (benchmarks/tasks/gridworld.py +
 graph_completion.py). Task-1 lives on a torus gridworld: a genuinely METRIC space where
 the four actions are 2D displacement vectors that COMMUTE and where the position of any
-cell is a linear function of the actions taken to reach it. GRAIL's grid HEAD path-
+cell is a linear function of the actions taken to reach it. CEREBRUM's grid HEAD path-
 integrates exactly that algebra (`pos += action.value`; code = [cos(k.pos), sin(k.pos)]),
 so two different paths to the same cell land on the same grid code and content-completion
 recalls the right observation. That is why grid beats flat there.
@@ -19,7 +19,7 @@ Here we instead build a random DIRECTED graph:
     in general). There is no Euclidean embedding in which "follow r" is a fixed
     displacement.
 
-  * Crucially, GRAIL is still only allowed an EXOGENOUS action label. We hand each
+  * Crucially, CEREBRUM is still only allowed an EXOGENOUS action label. We hand each
     relation r a FROZEN, arbitrary 2D vector `relation_vec(r)` (the only thing a metric
     path-integrator can consume) and feed it as Exogenous(...). This vector is a pure
     external label of the relation id — it is NOT a function of node/obs/network state
@@ -37,7 +37,7 @@ the flat prior. Reporting that honestly is the deliverable.
 """
 import numpy as np
 from dataclasses import dataclass
-from grail.types import Exogenous
+from cerebrum.types import Exogenous
 
 
 class RelationalGraph:
@@ -202,7 +202,7 @@ def _goto_node_origin(net):
     net.grid.reset()
 
 
-def run_grail_episode(net, ep):
+def run_cerebrum_episode(net, ep):
     """Bind obs along the walk at the grid code produced by the cumulative relation-vector
     sum; then score held-out 2-hop relational completions.
 

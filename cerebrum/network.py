@@ -8,7 +8,7 @@ from .rng import SeededRNG
 from .invariants import assert_scalar_M
 from .types import Exogenous
 
-class GRAILCore:
+class CerebrumCore:
     def __init__(self, cfg):
         self.cfg = cfg
         self.pc = PCAreas(cfg)

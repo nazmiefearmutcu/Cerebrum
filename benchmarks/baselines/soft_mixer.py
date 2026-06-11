@@ -1,14 +1,14 @@
 import numpy as np
-from grail.config import GRAILConfig
-from grail.network2 import GRAILWorkspaceNet
-from grail.plasticity import weight_update, precision_update, feedback_update
+from cerebrum.config import CerebrumConfig
+from cerebrum.network2 import CerebrumWorkspaceNet
+from cerebrum.plasticity import weight_update, precision_update, feedback_update
 
 class SoftWorkspace:
     """ABLATION ONLY — the FORBIDDEN soft write W_j = sum_m P(win_j=m)·read(m). This is a gated
     linear recurrent mixer (linear-attention / Mamba class): the slot becomes a content-conditioned
     superposition of EVERY module's read, broadcast back as a blended top-down prediction. It exists
     here, in benchmarks/baselines, SOLELY as the labeled ablation that proves the strict one-hot write
-    in grail/ is load-bearing. It MUST NEVER appear in grail/."""
+    in cerebrum/ is load-bearing. It MUST NEVER appear in cerebrum/."""
     def __init__(self, k_slots, content_dim):
         self.k = k_slots; self.dim = content_dim
         self.slots = np.zeros((k_slots, content_dim)); self.last_part = 0.0
@@ -21,7 +21,7 @@ class SoftWorkspace:
 
 
 def _soft_step(net, cfg, obs, reward):
-    """One GRAILWorkspaceNet.step but with the FORBIDDEN soft write instead of the one-hot write.
+    """One CerebrumWorkspaceNet.step but with the FORBIDDEN soft write instead of the one-hot write.
     Settling / bidding / selection / module+gate learning are IDENTICAL to net.step and the gate still
     samples a one-hot z; the ONLY changed variable is the WRITE: workspace.write_soft(P) (soft superposition)
     instead of workspace.write(z) (strict one-hot). This isolates write-discreteness as the sole factor."""
@@ -68,8 +68,8 @@ def run_binding_soft(n_modules=4, k_slots=1, trials=400, seed=0,
     stays scalar own-error."""
     rng = np.random.default_rng(seed)
     # SAME gate knobs as run_binding (lam_g, gate_temp) so the ONLY changed variable is the write rule.
-    cfg = GRAILConfig(dims=(n_modules, n_modules), n_settle=6, seed=seed, lam_g=lam_g, gate_temp=gate_temp)
-    net = GRAILWorkspaceNet(n_modules, k_slots, slice_dim=n_modules, cfg=cfg)
+    cfg = CerebrumConfig(dims=(n_modules, n_modules), n_settle=6, seed=seed, lam_g=lam_g, gate_temp=gate_temp)
+    net = CerebrumWorkspaceNet(n_modules, k_slots, slice_dim=n_modules, cfg=cfg)
     net.workspace = SoftWorkspace(k_slots, net.content_dim)      # swap in the soft (banned) workspace
     correct = 0; parts = []
     for t in range(trials):

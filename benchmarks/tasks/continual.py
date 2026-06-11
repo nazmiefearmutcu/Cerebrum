@@ -1,10 +1,10 @@
 import numpy as np
-from grail.config import GRAILConfig
-from grail.pc_core import PCAreas
-from grail.plasticity import Eligibility, weight_update, precision_update, feedback_update
-from grail.metaplasticity import MetaplasticFuse
-from grail.neuromod import Neuromodulator
-from grail.rng import SeededRNG
+from cerebrum.config import CerebrumConfig
+from cerebrum.pc_core import PCAreas
+from cerebrum.plasticity import Eligibility, weight_update, precision_update, feedback_update
+from cerebrum.metaplasticity import MetaplasticFuse
+from cerebrum.neuromod import Neuromodulator
+from cerebrum.rng import SeededRNG
 
 # --- Continual-learning harness config knobs (FM4 knife-edge; see concerns / README) ---
 # Patterns are scaled into the tanh decoder's representable range (PROTO_SCALE) so the
@@ -29,7 +29,7 @@ TAU_S = 20.0
 
 
 def _make_cfg(seed, dim):
-    return GRAILConfig(
+    return CerebrumConfig(
         dims=(dim, LATENT), n_settle=10, seed=seed,
         tau_w=TAU_W, eta_w=ETA_W, tau_e=TAU_E, tau_r=TAU_R,
         tau_c=TAU_C, alpha_c=ALPHA_C, beta_c=BETA_C, g_theta=G_THETA, tau_S=TAU_S,

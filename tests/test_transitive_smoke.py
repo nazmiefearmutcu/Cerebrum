@@ -1,8 +1,8 @@
 import numpy as np
-from grail.config import GRAILConfig
-from grail.network import GRAILCore
+from cerebrum.config import CerebrumConfig
+from cerebrum.network import CerebrumCore
 from benchmarks.tasks.transitive import make_episode, LinearOrder
-from benchmarks.tasks.transitive_grail import run_grail_episode
+from benchmarks.tasks.transitive_cerebrum import run_cerebrum_episode
 from benchmarks.baselines.flat_prior_transitive import run_flat_episode
 from benchmarks.baselines.backprop_mlp_transitive import run_mlp_episode
 
@@ -29,10 +29,10 @@ def test_episode_only_adjacent_in_training_only_nonadjacent_queried():
         assert frozenset({a, b}) not in ep.train_pairs
 
 
-def test_grail_runner_finite_and_in_range():
+def test_cerebrum_runner_finite_and_in_range():
     ep = make_episode(n_items=7, vocab=10, exposures=2, seed=2)
-    cfg = GRAILConfig(dims=(10, 8, 8), grid_n_modules=8, n_settle=10, seed=0)
-    s = run_grail_episode(GRAILCore(cfg), ep)
+    cfg = CerebrumConfig(dims=(10, 8, 8), grid_n_modules=8, n_settle=10, seed=0)
+    s = run_cerebrum_episode(CerebrumCore(cfg), ep)
     assert np.isfinite(s) and 0.0 <= s <= 1.0
 
 
@@ -52,7 +52,7 @@ def test_sweep_produces_finite_numbers():
     from benchmarks.run_transitive import run_sweep
     res = run_sweep(exposures_list=(1, 2), seeds=(0, 1, 2), n_items=7, vocab=10)
     for E in (1, 2):
-        for key in ("grail", "flat", "mlp"):
+        for key in ("cerebrum", "flat", "mlp"):
             assert np.isfinite(res[key][E])
             assert 0.0 <= res[key][E] <= 1.0
 
@@ -64,10 +64,10 @@ def test_grid_beats_flat_memorizer_on_transitive_order():
     from benchmarks.run_transitive import run_sweep, run_length_sweep
     res = run_sweep(exposures_list=(1, 2), seeds=(0, 1, 2, 3, 4), n_items=7, vocab=10)
     for E in (1, 2):
-        assert res["grail"][E] >= res["flat"][E] + 0.20      # grid clears the memorizer
+        assert res["cerebrum"][E] >= res["flat"][E] + 0.20      # grid clears the memorizer
 
     # discriminating regime: at a longer order, the grid's metric line also beats the
     # backprop-MLP, which degrades as the transitive chain grows. Robust over 5 seeds.
     resN = run_length_sweep(n_items_list=(25,), seeds=(0, 1, 2, 3, 4), exposures=1)
-    assert resN["grail"][25] >= resN["mlp"][25] + 0.15
-    assert resN["grail"][25] >= resN["flat"][25] + 0.20
+    assert resN["cerebrum"][25] >= resN["mlp"][25] + 0.15
+    assert resN["cerebrum"][25] >= resN["flat"][25] + 0.20

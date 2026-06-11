@@ -1,4 +1,4 @@
-"""I5-Unified: integration test for grail/unified.GRAILNet — the ONE network that exercises
+"""I5-Unified: integration test for cerebrum/unified.CerebrumNet — the ONE network that exercises
 all five pillars together (PC areas + grid generative prior + basal-ganglia gate + k<<n
 workspace broadcast + surprise-gated metaplastic fuse on module weights), all driven by the
 single scalar neuromodulator M.
@@ -14,15 +14,15 @@ These tests pin the load-bearing invariants end-to-end (NOT just that it runs):
 import numpy as np
 import pytest
 
-from grail.config import GRAILConfig
-from grail.unified import GRAILNet
-from grail.types import Exogenous
-from grail.invariants import assert_one_hot, assert_scalar_M
+from cerebrum.config import CerebrumConfig
+from cerebrum.unified import CerebrumNet
+from cerebrum.types import Exogenous
+from cerebrum.invariants import assert_one_hot, assert_scalar_M
 
 
 def _make_net(seed=0, n_modules=3, k_slots=2, slice_dim=4):
-    cfg = GRAILConfig(dims=(slice_dim, 8), n_settle=8, seed=seed)
-    return GRAILNet(n_modules=n_modules, k_slots=k_slots, slice_dim=slice_dim, cfg=cfg), cfg
+    cfg = CerebrumConfig(dims=(slice_dim, 8), n_settle=8, seed=seed)
+    return CerebrumNet(n_modules=n_modules, k_slots=k_slots, slice_dim=slice_dim, cfg=cfg), cfg
 
 
 def _obs(n_modules, slice_dim, rng):
@@ -107,9 +107,9 @@ def test_basic_learning_signal_error_drops():
     harness uses a visible learning rate (eta_w/tau_w large, the same regime as the continual
     benchmark) and a deterministic noise-free (T=0) readout with a neutral broadcast, so eps[0]
     reflects the learned WEIGHTS rather than the settling floor or the workspace recurrence."""
-    cfg = GRAILConfig(dims=(4, 8), n_settle=10, seed=3, grid_eta_bind=0.0,
+    cfg = CerebrumConfig(dims=(4, 8), n_settle=10, seed=3, grid_eta_bind=0.0,
                       eta_w=0.6, tau_w=1.0, tau_e=1.0, tau_r=1e9)
-    net = GRAILNet(n_modules=2, k_slots=1, slice_dim=4, cfg=cfg)
+    net = CerebrumNet(n_modules=2, k_slots=1, slice_dim=4, cfg=cfg)
     rng = np.random.default_rng(0)
     obs = [rng.standard_normal(4) * 0.5 for _ in range(2)]
     still = Exogenous(np.array([0.0, 0.0]))

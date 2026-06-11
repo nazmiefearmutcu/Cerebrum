@@ -1,11 +1,11 @@
 import os, sys; sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
-from grail.config import GRAILConfig
-from grail.pc_core import PCAreas
-from grail.plasticity import Eligibility, weight_update, precision_update, feedback_update
-from grail.neuromod import Neuromodulator
-from grail.rng import SeededRNG
-from grail.energy import (spike_sparsity, dynamic_synaptic_ops, dynamic_energy_magnitude,
+from cerebrum.config import CerebrumConfig
+from cerebrum.pc_core import PCAreas
+from cerebrum.plasticity import Eligibility, weight_update, precision_update, feedback_update
+from cerebrum.neuromod import Neuromodulator
+from cerebrum.rng import SeededRNG
+from cerebrum.energy import (spike_sparsity, dynamic_synaptic_ops, dynamic_energy_magnitude,
                           dense_backprop_ops, global_comm_per_update)
 
 # Spike threshold for the (conservative) thresholded op count: above the Langevin noise floor so a
@@ -31,7 +31,7 @@ def _measure(net, protos, cfg):
 
 
 def run_energy(seed=0, dim=10, latent=16, n_proto=3, passes=300, measure_every=30):
-    cfg = GRAILConfig(dims=(dim, latent), n_settle=10, seed=seed, tau_w=1.0, eta_w=0.6, tau_r=1e9, tau_e=1.0)
+    cfg = CerebrumConfig(dims=(dim, latent), n_settle=10, seed=seed, tau_w=1.0, eta_w=0.6, tau_r=1e9, tau_e=1.0)
     rng_p = np.random.default_rng(seed + 5)
     protos = [0.4 * rng_p.standard_normal(dim) for _ in range(n_proto)]
     net = PCAreas(cfg); nm = Neuromodulator(cfg); rng = SeededRNG(seed)
@@ -58,7 +58,7 @@ def run_energy(seed=0, dim=10, latent=16, n_proto=3, passes=300, measure_every=3
 if __name__ == "__main__":
     curve, cfg = run_energy()
     dense = dense_backprop_ops(cfg.dims); gc = global_comm_per_update(cfg.dims)
-    print("Task-3 energy/op LEARNING CURVE (GRAIL, reconstruction; noise-free T=0 measurement)")
+    print("Task-3 energy/op LEARNING CURVE (CEREBRUM, reconstruction; noise-free T=0 measurement)")
     print(f"{'pass':>5}{'recon_err':>12}{'eps_spars@0.1':>14}{'dyn_ops':>10}{'dyn_energy':>12}")
     for (ep, e, r, o, m) in curve:
         print(f"{ep:>5}{e:>12.4f}{r:>14.3f}{o:>10.1f}{m:>12.2f}")
@@ -67,7 +67,7 @@ if __name__ == "__main__":
           f"(~{f[1]/max(l[1],1e-9):.1f}x); dyn_energy {f[4]:.1f} -> {l[4]:.1f} "
           f"(~{f[4]/max(l[4],1e-9):.1f}x); spike-sparsity@0.1 {f[2]:.3f} -> {l[2]:.3f}.")
     print(f"Dense backprop MAC/step (rho=1, NO decay): {dense} ops.")
-    print(f"Global comm/update: GRAIL = {gc['grail_learn_scalars']} SCALAR (M); "
+    print(f"Global comm/update: CEREBRUM = {gc['cerebrum_learn_scalars']} SCALAR (M); "
           f"backprop = {gc['backprop_error_vector_elems']} error-VECTOR elements (O(depth)).")
     print("HONEST: only the DYNAMIC switching term decays — static/leakage and settle-time energy do "
           "NOT. The thresholded spike count is conservative (the learner plateaus at recon~0.25, so "

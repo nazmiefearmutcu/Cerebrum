@@ -1,4 +1,4 @@
-"""GRAIL-grid runner for the TRANSITIVE INFERENCE task.
+"""CEREBRUM-grid runner for the TRANSITIVE INFERENCE task.
 
 Mechanism (uses only the grid HEAD's native ops: exogenous path-integration + Hebbian
 content bind + completion):
@@ -18,7 +18,7 @@ extends to a metric line, so the relative order of two items that were never sho
 together is reconstructable. Baselines that only memorize shown pairs cannot do this.
 """
 import numpy as np
-from grail.types import Exogenous
+from cerebrum.types import Exogenous
 
 
 def _goto_coord(net, x):
@@ -41,7 +41,7 @@ def _decode_position(net, probe_obs, n_items):
     return best_x
 
 
-def run_grail_episode(net, ep):
+def run_cerebrum_episode(net, ep):
     """Bind items along the line via adjacent exogenous steps; score held-out
     non-adjacent transitive comparisons."""
     order = ep.order

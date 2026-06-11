@@ -65,9 +65,9 @@ def test_make_multi_split_disjoint_covers_every_value_and_caps_budget():
 
 def test_settle_top_latent_multi_finite_and_deterministic():
     task = MultiFactorTask(cards=(4, 4, 4), part_dim=5, seed=0)
-    from grail.config import GRAILConfig
-    from grail.pc_core import PCAreas
-    cfg = GRAILConfig(dims=(task.obs_dim, 20, 20), n_settle=8, seed=0)
+    from cerebrum.config import CerebrumConfig
+    from cerebrum.pc_core import PCAreas
+    cfg = CerebrumConfig(dims=(task.obs_dim, 20, 20), n_settle=8, seed=0)
     net = PCAreas(cfg)
     obs = task.embed(1, 2, 3)
     z1 = settle_top_latent_multi(net, obs, steps=10)

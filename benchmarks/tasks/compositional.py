@@ -36,13 +36,13 @@ dims FREE, settle the hierarchy NOISE-FREE (T=0), and read the completed f2-part
 the completed f2-part match the TRUE held-out f2 better than any other f2 candidate (1-NN over
 the B prototype f2-parts). This is masked PC pattern-completion through the hierarchy.
 
-IMPLEMENTATION NOTE (no grail/ change)
+IMPLEMENTATION NOTE (no cerebrum/ change)
 --------------------------------------
-Masked / partial completion is done WITHOUT modifying grail/: we call settle_step with
+Masked / partial completion is done WITHOUT modifying cerebrum/: we call settle_step with
 clamp_bottom=None (so all of x[0] is free to evolve under the PC drift), then immediately
 re-pin ONLY the observed (f1-part) dims of net.x[0] after each step. The masked (f2-part) dims
 keep their settled values. This is a pure benchmark-side use of the existing settle_step — no
-new clamp_mask argument and no edit to grail/ was needed.
+new clamp_mask argument and no edit to cerebrum/ was needed.
 
 HONESTY
 -------
@@ -53,12 +53,12 @@ not generalize better, that is a valid negative result and the run script report
 """
 import numpy as np
 
-from grail.pc_core import PCAreas
-from grail.plasticity import (
+from cerebrum.pc_core import PCAreas
+from cerebrum.plasticity import (
     Eligibility, weight_update, precision_update, feedback_update, feedback_update_kp,
 )
-from grail.neuromod import Neuromodulator
-from grail.rng import SeededRNG
+from cerebrum.neuromod import Neuromodulator
+from cerebrum.rng import SeededRNG
 
 # Scale the embedding into the tanh decoder's representable range (same rationale as the
 # continual harness PROTO_SCALE): keeps the reconstruction floor off saturation so the
@@ -130,7 +130,7 @@ class CompositionalTask:
 
 
 # ------------------------------------------------------------------------------------------
-# GRAIL PC-hierarchy completion runner (NO grid head: the deep PC areas do the work)
+# CEREBRUM PC-hierarchy completion runner (NO grid head: the deep PC areas do the work)
 # ------------------------------------------------------------------------------------------
 
 def _bw_alignment(net):
@@ -201,7 +201,7 @@ def _complete_f2(net, task, f1, settle_steps):
     """Masked PC pattern-completion: clamp ONLY the f1-part of x[0], leave the f2-part FREE,
     settle NOISE-FREE (T=0), return the completed f2-part.
 
-    Partial clamp is done benchmark-side (no grail/ change): settle_step with clamp_bottom=None
+    Partial clamp is done benchmark-side (no cerebrum/ change): settle_step with clamp_bottom=None
     lets all of x[0] evolve, then we re-pin ONLY the observed f1-part dims after every step;
     the masked f2-part dims keep their settled (top-down-predicted) values."""
     erng = SeededRNG(_EVAL_SEED)  # deterministic eval rng (T=0 anyway -> zero noise)
@@ -293,7 +293,7 @@ def run_flat_memorizer(task):
 
 
 def run_backprop_mlp(task, epochs=400, hidden=32, lr=0.2, seed=0):
-    """Backprop-MLP COMPARATOR (uses backprop, which GRAIL never does). Maps the f1-part ->
+    """Backprop-MLP COMPARATOR (uses backprop, which CEREBRUM never does). Maps the f1-part ->
     f2-part by gradient descent on the TRAIN combos, tested on held-out combos via nearest-f2.
 
     With a factorable target a backprop net CAN learn the f1->f2 association for seen rows, but

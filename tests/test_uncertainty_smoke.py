@@ -7,8 +7,8 @@ AUROC/metric plumbing is well-formed. We deliberately do NOT assert that the unc
 is only weak, so a hard calibration assertion would be flaky and dishonest.
 """
 import numpy as np
-from grail.config import GRAILConfig
-from grail.rng import SeededRNG
+from cerebrum.config import CerebrumConfig
+from cerebrum.rng import SeededRNG
 from benchmarks.tasks.gridworld import make_episode
 from benchmarks.run_uncertainty import (
     train_episode, settle_samples, per_query_records,
@@ -17,7 +17,7 @@ from benchmarks.run_uncertainty import (
 
 
 def _small_cfg(vocab=5, seed=0):
-    return GRAILConfig(dims=(vocab, 8, 8), grid_n_modules=8, n_settle=10, seed=seed)
+    return CerebrumConfig(dims=(vocab, 8, 8), grid_n_modules=8, n_settle=10, seed=seed)
 
 
 def test_settle_samples_finite_and_shaped():

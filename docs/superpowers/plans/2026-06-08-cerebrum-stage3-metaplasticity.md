@@ -1,14 +1,14 @@
-# GRAIL Stage 3 Implementation Plan — Surprise-Gated Metaplastic Fuse + Catastrophic-Forgetting (Task-2)
+# CEREBRUM Stage 3 Implementation Plan — Surprise-Gated Metaplastic Fuse + Catastrophic-Forgetting (Task-2)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development. Steps use `- [ ]` checkboxes.
 
 **Goal:** Build the surprise-gated per-synapse metaplastic fuse `θ/c` (the OP3 "addressed-not-solved" mechanism) and prove on a sequential reconstruction stream A→B→C (no replay, no iid batch, no task-boundary signal) that it mitigates catastrophic forgetting better than always-plastic local learning and competitively with an EWC analog — WITHOUT a Fisher pass or stored anchor weights, reusing the SAME `ε` already computed for inference.
 
-**Architecture:** Builds on Stage 0+1 local plasticity (`grail/plasticity.py`'s `weight_update` already accepts a `theta` gate; Stage 1 used `θ≡1`). The new `MetaplasticFuse` maintains a per-synapse consolidation reserve `c` and surprise baseline `S̄`, and emits the plasticity-permission `θ`. A small continual-learning harness (PC reconstruction) drives the demonstration. Pure NumPy, no autograd.
+**Architecture:** Builds on Stage 0+1 local plasticity (`cerebrum/plasticity.py`'s `weight_update` already accepts a `theta` gate; Stage 1 used `θ≡1`). The new `MetaplasticFuse` maintains a per-synapse consolidation reserve `c` and surprise baseline `S̄`, and emits the plasticity-permission `θ`. A small continual-learning harness (PC reconstruction) drives the demonstration. Pure NumPy, no autograd.
 
-**Tech Stack:** Python 3, numpy, pytest. No torch/jax/sklearn in `grail/`.
+**Tech Stack:** Python 3, numpy, pytest. No torch/jax/sklearn in `cerebrum/`.
 
-**Spec:** `docs/superpowers/specs/2026-06-08-grail-cortical-workspace-design.md` §3③ (metaplastic fuse), §7 OP3, §9 FM4, §10 Task-2.
+**Spec:** `docs/superpowers/specs/2026-06-08-cerebrum-cortical-workspace-design.md` §3③ (metaplastic fuse), §7 OP3, §9 FM4, §10 Task-2.
 
 **Honesty gate (enforced in README):** OP3 is "genuinely addressed, pending this stage's validation — NOT solved." The fuse has no stability proof and two named failure modes (forgetting OR plastic-death). Do NOT write "stability-plasticity solved."
 
@@ -17,35 +17,35 @@
 ## File Structure (additions)
 
 ```
-grail/
+cerebrum/
   config.py        # MODIFY: add metaplasticity fields (tau_S, tau_c, alpha_c, beta_c, c_max, g_theta)
   metaplasticity.py# MetaplasticFuse: per-synapse c, S̄, theta(surprise) — reuses Pi,eps,eligibility
 tests/
   test_metaplasticity.py  test_stage3_smoke.py
 benchmarks/
-  tasks/continual.py        # sequential A->B->C reconstruction stream + forgetting metric + GRAIL runner
+  tasks/continual.py        # sequential A->B->C reconstruction stream + forgetting metric + CEREBRUM runner
   baselines/ewc.py          # EWC-analog (quadratic anchor) baseline on the same local substrate
-  run_stage3.py             # forgetting comparison: GRAIL-fuse vs theta=1 vs EWC-analog
+  run_stage3.py             # forgetting comparison: CEREBRUM-fuse vs theta=1 vs EWC-analog
 ```
 
 ---
 
 ## Task 1: Config — metaplasticity hyperparameters
 
-**Files:** Modify `grail/config.py`; Test `tests/test_metaplasticity.py` (first test stub)
+**Files:** Modify `cerebrum/config.py`; Test `tests/test_metaplasticity.py` (first test stub)
 
 - [ ] **Step 1: Failing test** `tests/test_metaplasticity.py`:
 ```python
-from grail.config import GRAILConfig
+from cerebrum.config import CerebrumConfig
 
 def test_metaplasticity_config_present():
-    c = GRAILConfig()
+    c = CerebrumConfig()
     assert c.c_max > 0
     assert c.tau_c > c.tau_S      # consolidation slower than the surprise baseline EMA
     assert c.alpha_c > 0 and c.beta_c > 0 and c.g_theta > 0
 ```
 
-- [ ] **Step 2: Run, fail. Step 3: Implement** — add fields to the `GRAILConfig` dataclass (keep existing fields unchanged):
+- [ ] **Step 2: Run, fail. Step 3: Implement** — add fields to the `CerebrumConfig` dataclass (keep existing fields unchanged):
 ```python
     # metaplasticity (Stage 3)
     tau_S: float = 20.0       # surprise-baseline EMA timescale
@@ -61,18 +61,18 @@ def test_metaplasticity_config_present():
 
 ## Task 2: MetaplasticFuse — surprise, consolidation reserve, plasticity permission
 
-**Files:** Create `grail/metaplasticity.py`; add tests to `tests/test_metaplasticity.py`
+**Files:** Create `cerebrum/metaplasticity.py`; add tests to `tests/test_metaplasticity.py`
 
 Spec §3③/§7: per-synapse surprise `S_ij = Π_i|ε_i·e_j| − S̄_ij`; reserve `τ_c ċ = +α[S]_-(c_max−c) − β[S]_+ c` (`[S]_-` = below-baseline/predictive builds c; `[S]_+` = above-baseline/surprising erodes c); permission `θ = σ(g(S − c))` (surprise opens the fuse, consolidation closes it). The surprise REUSES the same `Π,ε,eligibility` from inference — no Fisher pass, no task-boundary signal, no stored anchor weights.
 
 - [ ] **Step 1: Failing tests (append):**
 ```python
 import numpy as np
-from grail.config import GRAILConfig
-from grail.metaplasticity import MetaplasticFuse
+from cerebrum.config import CerebrumConfig
+from cerebrum.metaplasticity import MetaplasticFuse
 
 def test_sustained_low_surprise_builds_reserve_and_closes_fuse():
-    c = GRAILConfig(tau_c=5.0, tau_S=2.0)
+    c = CerebrumConfig(tau_c=5.0, tau_S=2.0)
     fuse = MetaplasticFuse(shape=(2,2), cfg=c)
     Pi = np.array([1.0,1.0]); eps = np.array([0.0,0.0]); elig = np.array([0.0,0.0])  # perfectly predicted -> low surprise
     th = None
@@ -81,7 +81,7 @@ def test_sustained_low_surprise_builds_reserve_and_closes_fuse():
     assert np.all(th < 0.5)                # fuse closes (consolidated synapses freeze)
 
 def test_high_surprise_opens_fuse():
-    c = GRAILConfig(tau_c=5.0, tau_S=2.0)
+    c = CerebrumConfig(tau_c=5.0, tau_S=2.0)
     fuse = MetaplasticFuse(shape=(2,2), cfg=c)
     # first consolidate under low surprise
     for _ in range(500): fuse.update(np.array([1.,1.]), np.array([0.,0.]), np.array([0.,0.]))
@@ -90,12 +90,12 @@ def test_high_surprise_opens_fuse():
     assert np.all(th > 0.3)                # surprise reopens plasticity (learn-on-surprise)
 
 def test_theta_in_unit_interval():
-    fuse = MetaplasticFuse(shape=(3,4), cfg=GRAILConfig())
+    fuse = MetaplasticFuse(shape=(3,4), cfg=CerebrumConfig())
     th = fuse.update(np.ones(3), np.random.default_rng(0).standard_normal(3), np.ones(4))
     assert th.shape == (3,4) and np.all(th >= 0) and np.all(th <= 1)
 ```
 
-- [ ] **Step 2: Fail. Step 3: Implement** `grail/metaplasticity.py`:
+- [ ] **Step 2: Fail. Step 3: Implement** `cerebrum/metaplasticity.py`:
 ```python
 import numpy as np
 
@@ -156,12 +156,12 @@ def test_fuse_reduces_forgetting_vs_always_plastic():
 ```python
 import numpy as np
 from dataclasses import replace
-from grail.config import GRAILConfig
-from grail.pc_core import PCAreas
-from grail.plasticity import Eligibility, weight_update, precision_update, feedback_update
-from grail.metaplasticity import MetaplasticFuse
-from grail.neuromod import Neuromodulator
-from grail.rng import SeededRNG
+from cerebrum.config import CerebrumConfig
+from cerebrum.pc_core import PCAreas
+from cerebrum.plasticity import Eligibility, weight_update, precision_update, feedback_update
+from cerebrum.metaplasticity import MetaplasticFuse
+from cerebrum.neuromod import Neuromodulator
+from cerebrum.rng import SeededRNG
 
 def _prototypes(rng, n_tasks, per_task, dim):
     return [ [rng.standard_normal(dim) for _ in range(per_task)] for _ in range(n_tasks) ]
@@ -174,7 +174,7 @@ def _err_on(net, patterns, cfg, rng):
     return tot/len(patterns)
 
 def run_continual(use_fuse, seed=0, dim=10, per_task=6, passes=40):
-    cfg = GRAILConfig(dims=(dim, 8), n_settle=10, seed=seed, tau_w=40.0)
+    cfg = CerebrumConfig(dims=(dim, 8), n_settle=10, seed=seed, tau_w=40.0)
     rng_proto = np.random.default_rng(seed+5)
     A,B,C = _prototypes(rng_proto, 3, per_task, dim)
     net = PCAreas(cfg); nm = Neuromodulator(cfg); rng = SeededRNG(seed)
@@ -214,7 +214,7 @@ def run_continual(use_fuse, seed=0, dim=10, per_task=6, passes=40):
 
 **Files:** Create `benchmarks/baselines/ewc.py`; add test to `tests/test_stage3_smoke.py`
 
-The EWC comparator: after task A, store anchor weights `W*` and a diagonal importance `Ω` (a Fisher analog = accumulated `(Π·ε·a)²`), then add a quadratic penalty `−λ Ω (W − W*)` to the weight update during B,C. This is the "needs a Fisher pass + stored anchors" baseline GRAIL's fuse aims to match WITHOUT those.
+The EWC comparator: after task A, store anchor weights `W*` and a diagonal importance `Ω` (a Fisher analog = accumulated `(Π·ε·a)²`), then add a quadratic penalty `−λ Ω (W − W*)` to the weight update during B,C. This is the "needs a Fisher pass + stored anchors" baseline CEREBRUM's fuse aims to match WITHOUT those.
 
 - [ ] **Step 1: Failing test (append):**
 ```python
@@ -224,21 +224,21 @@ def test_ewc_baseline_runs_and_reduces_forgetting():
     ewc     = run_continual_ewc(seed=0)
     plastic = run_continual(use_fuse=False, seed=0)
     assert ewc["forgetA"] < plastic["forgetA"]    # EWC also reduces forgetting (sanity: the task is learnable-retainable)
-    assert ewc["used_fisher_pass"] is True         # EWC requires the extra importance pass GRAIL avoids
+    assert ewc["used_fisher_pass"] is True         # EWC requires the extra importance pass CEREBRUM avoids
 ```
 
 - [ ] **Step 2: Fail. Step 3: Implement** `benchmarks/baselines/ewc.py`:
 ```python
 import numpy as np
-from grail.config import GRAILConfig
-from grail.pc_core import PCAreas
-from grail.plasticity import Eligibility, weight_update, precision_update, feedback_update
-from grail.neuromod import Neuromodulator
-from grail.rng import SeededRNG
+from cerebrum.config import CerebrumConfig
+from cerebrum.pc_core import PCAreas
+from cerebrum.plasticity import Eligibility, weight_update, precision_update, feedback_update
+from cerebrum.neuromod import Neuromodulator
+from cerebrum.rng import SeededRNG
 from benchmarks.tasks.continual import _prototypes, _err_on
 
 def run_continual_ewc(seed=0, dim=10, per_task=6, passes=40, lam=5.0):
-    cfg = GRAILConfig(dims=(dim,8), n_settle=10, seed=seed, tau_w=40.0)
+    cfg = CerebrumConfig(dims=(dim,8), n_settle=10, seed=seed, tau_w=40.0)
     A,B,C = _prototypes(np.random.default_rng(seed+5), 3, per_task, dim)
     net = PCAreas(cfg); nm = Neuromodulator(cfg); rng = SeededRNG(seed)
     elig = [Eligibility((cfg.dims[l+1],), cfg) for l in range(net.L-1)]
@@ -261,7 +261,7 @@ def run_continual_ewc(seed=0, dim=10, per_task=6, passes=40, lam=5.0):
 
     train(A, anchored=False)
     errA_afterA = _err_on(net, A, cfg, rng); errC_beforeC = _err_on(net, C, cfg, rng)
-    # EWC's extra cost: a Fisher-importance pass over A + stored anchors (GRAIL's fuse needs neither)
+    # EWC's extra cost: a Fisher-importance pass over A + stored anchors (CEREBRUM's fuse needs neither)
     for p in A:
         for _ in range(cfg.n_settle): net.settle_step(rng, T=cfg.T_floor, clamp_bottom=p)
         net.compute_errors()
@@ -284,7 +284,7 @@ def run_continual_ewc(seed=0, dim=10, per_task=6, passes=40, lam=5.0):
 
 **Files:** Create `benchmarks/run_stage3.py`; update `README.md`; run full suite.
 
-- [ ] **Step 1:** `benchmarks/run_stage3.py` (with the sys.path bootstrap) prints, averaged over seeds {0,1,2}: `forgetA` and `errC_afterC` for GRAIL-fuse, θ≡1 (always-plastic), and EWC-analog; plus GRAIL's `cbar` (consolidation reached).
+- [ ] **Step 1:** `benchmarks/run_stage3.py` (with the sys.path bootstrap) prints, averaged over seeds {0,1,2}: `forgetA` and `errC_afterC` for CEREBRUM-fuse, θ≡1 (always-plastic), and EWC-analog; plus CEREBRUM's `cbar` (consolidation reached).
 ```python
 import os, sys; sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
@@ -298,13 +298,13 @@ if __name__ == "__main__":
         return {k: float(np.mean([r[k] for r in rs])) for k in rs[0] if isinstance(rs[0][k],(int,float))}
     fuse = avg(run_continual, use_fuse=True); plastic = avg(run_continual, use_fuse=False); ewc = avg(run_continual_ewc)
     print(f"{'method':<16}{'forgetA':>10}{'errC_afterC':>14}")
-    print(f"{'GRAIL-fuse':<16}{fuse['forgetA']:>10.3f}{fuse['errC_afterC']:>14.3f}   (cbar={fuse['cbar']:.2f})")
+    print(f"{'CEREBRUM-fuse':<16}{fuse['forgetA']:>10.3f}{fuse['errC_afterC']:>14.3f}   (cbar={fuse['cbar']:.2f})")
     print(f"{'always-plastic':<16}{plastic['forgetA']:>10.3f}{plastic['errC_afterC']:>14.3f}")
     print(f"{'EWC-analog':<16}{ewc['forgetA']:>10.3f}{ewc['errC_afterC']:>14.3f}   (+Fisher pass +anchors)")
 ```
 - [ ] **Step 2:** Run `python3 benchmarks/run_stage3.py`, capture the table.
 - [ ] **Step 3:** Update `README.md` Stage-3 section: the fuse reduces forgetting vs always-plastic WITHOUT replay/Fisher/anchors, competitive with EWC; reiterate honesty gate — OP3 is **addressed, not solved**; the (θ,c) loop is a knife-edge (FM4: forgetting OR plastic-death), tuned not proven; do NOT claim "stability-plasticity solved."
-- [ ] **Step 4:** Full suite `cd /Users/nazmi/grail && python3 -m pytest -q` (all green).
+- [ ] **Step 4:** Full suite `cd /Users/nazmi/cerebrum && python3 -m pytest -q` (all green).
 - [ ] **Step 5: Commit** — `git commit -am "docs(stage3): README + catastrophic-forgetting demonstration; full suite green"`
 
 ---

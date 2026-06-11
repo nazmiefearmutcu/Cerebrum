@@ -1,18 +1,18 @@
 """Smoke test for the NON-METRIC relational few-shot benchmark (spec failure-mode FM7).
 
-This task is DESIGNED to break GRAIL's metric grid prior: the relational graph is a
+This task is DESIGNED to break CEREBRUM's metric grid prior: the relational graph is a
 random DIRECTED graph with asymmetric, non-commuting relation composition, so the grid's
 2D path-integration (pos += relation_vector, a commutative metric algebra) cannot assign a
 consistent code to a node reached via different relation-paths. We therefore DO NOT assert
-that GRAIL wins — only that the generator and every runner emit valid, finite numbers.
+that CEREBRUM wins — only that the generator and every runner emit valid, finite numbers.
 
 This file includes smoke tests for both the standard RelationalGraph and TreeRelationalGraph.
 """
 import numpy as np
-from grail.config import GRAILConfig
-from grail.network import GRAILCore
+from cerebrum.config import CerebrumConfig
+from cerebrum.network import CerebrumCore
 from benchmarks.tasks.relational import (
-    RelationalGraph, TreeRelationalGraph, make_episode, run_grail_episode,
+    RelationalGraph, TreeRelationalGraph, make_episode, run_cerebrum_episode,
 )
 from benchmarks.baselines.flat_prior_relational import run_flat_relational_episode
 from benchmarks.baselines.backprop_mlp_relational import run_mlp_relational_episode
@@ -55,10 +55,10 @@ def test_episode_has_walk_and_heldout_queries():
         assert len(rel_path) >= 1                  # composed relation path
 
 
-def test_grail_runner_finite_and_in_range():
+def test_cerebrum_runner_finite_and_in_range():
     ep = make_episode(n_nodes=14, n_relations=3, vocab=5, K=12, seed=3)
-    cfg = GRAILConfig(dims=(5, 8, 8), grid_n_modules=8, n_settle=10, seed=0)
-    s = run_grail_episode(GRAILCore(cfg), ep)
+    cfg = CerebrumConfig(dims=(5, 8, 8), grid_n_modules=8, n_settle=10, seed=0)
+    s = run_cerebrum_episode(CerebrumCore(cfg), ep)
     assert np.isfinite(s) and 0.0 <= s <= 1.0
 
 
@@ -126,10 +126,10 @@ def test_tree_episode_has_walk_and_heldout_queries():
         assert len(rel_path) == 2  # all queries in make_episode are 2-hop compositions
 
 
-def test_tree_grail_runner_finite_and_in_range():
+def test_tree_cerebrum_runner_finite_and_in_range():
     ep = make_episode(n_nodes=14, n_relations=3, vocab=5, K=12, seed=3, graph_class=TreeRelationalGraph)
-    cfg = GRAILConfig(dims=(5, 8, 8), grid_n_modules=8, n_settle=10, seed=0)
-    s = run_grail_episode(GRAILCore(cfg), ep)
+    cfg = CerebrumConfig(dims=(5, 8, 8), grid_n_modules=8, n_settle=10, seed=0)
+    s = run_cerebrum_episode(CerebrumCore(cfg), ep)
     assert np.isfinite(s) and 0.0 <= s <= 1.0
 
 

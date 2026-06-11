@@ -1,6 +1,6 @@
 import numpy as np, pytest
-from grail.invariants import assert_one_hot, assert_scalar_M, assert_exogenous_action
-from grail.types import Exogenous
+from cerebrum.invariants import assert_one_hot, assert_scalar_M, assert_exogenous_action
+from cerebrum.types import Exogenous
 
 def test_one_hot_passes_for_one_hot_columns():
     z = np.array([[1.0,0.0],[0.0,1.0],[0.0,0.0]])  # per-slot (column) one-hot; a slot may be empty

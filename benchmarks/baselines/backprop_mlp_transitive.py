@@ -1,5 +1,5 @@
 """Backprop-MLP baseline for TRANSITIVE INFERENCE (COMPARATOR ONLY — uses backprop,
-which GRAIL never does).
+which CEREBRUM never does).
 
 Trained by gradient descent on the SHOWN adjacent pairs only: input = concat(one-hot
 obs_i, one-hot obs_j) for an adjacent pair (both orderings, with the correct

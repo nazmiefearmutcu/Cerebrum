@@ -8,18 +8,18 @@ compositionally-generalizing latent SURVIVE when the SAME cortical module operat
 richer unified dynamics — with the grid-HEAD structural top-down prediction active, and/or the
 thalamo-cortical workspace broadcast feeding back, and/or the surprise-gated metaplastic fuse
 gating the local plasticity? We linear-probe each factor off the module's latent on HELD-OUT
-combos under each condition (bare / +grid / +broadcast / +fuse / full-GRAILNet), with the same
+combos under each condition (bare / +grid / +broadcast / +fuse / full-CerebrumNet), with the same
 UNTRAINED and RANDOM-PROJECTION controls as the bare probe.
 
 These assertions only check ROBUSTLY-TRUE things (finite/in-range outputs, shape/coverage
 contracts, the noise-free measurement is deterministic, each pipeline condition is genuinely
-DIFFERENT from bare in its dynamics, the GRAILNet path runs and preserves its invariants). They
+DIFFERENT from bare in its dynamics, the CerebrumNet path runs and preserves its invariants). They
 do NOT assert "factorization survives" — that is the empirical question the run script answers.
 """
 import numpy as np
 
-from grail.config import GRAILConfig
-from grail.pc_core import PCAreas
+from cerebrum.config import CerebrumConfig
+from cerebrum.pc_core import PCAreas
 from benchmarks.tasks.compositional import CompositionalTask
 from benchmarks.run_factorization import make_split
 from benchmarks.run_factorization_pipeline import (
@@ -29,7 +29,7 @@ from benchmarks.run_factorization_pipeline import (
 
 
 def test_conditions_cover_the_advertised_axes():
-    # the probe must compare bare vs each added pipeline piece vs the full GRAILNet.
+    # the probe must compare bare vs each added pipeline piece vs the full CerebrumNet.
     names = set(CONDITIONS)
     assert {"bare", "grid", "broadcast", "fuse", "full"}.issubset(names)
 
@@ -42,7 +42,7 @@ def test_bare_pipeline_matches_train_pc_latent_bitwise():
     from benchmarks.run_factorization import settle_top_latent as stl
     task = CompositionalTask(A=4, B=4, part_dim=6, seed=0)
     dims = (task.obs_dim, 12, 12)
-    cfg = GRAILConfig(dims=dims, n_settle=10, seed=0)
+    cfg = CerebrumConfig(dims=dims, n_settle=10, seed=0)
     ref = _train_pc(task, cfg, passes=8)
     pc = PipelineConfig(condition="bare")
     got = train_pipeline_module(task, cfg, pc, passes=8)
@@ -60,7 +60,7 @@ def test_bare_pipeline_matches_train_pc_latent_bitwise():
 def test_settle_latent_is_finite_and_deterministic_each_condition():
     task = CompositionalTask(A=4, B=4, part_dim=6, seed=1)
     dims = (task.obs_dim, 12, 12)
-    cfg = GRAILConfig(dims=dims, n_settle=8, seed=1)
+    cfg = CerebrumConfig(dims=dims, n_settle=8, seed=1)
     obs = task.embed(0, 3)
     for cond in ("bare", "grid", "broadcast", "fuse"):
         pc = PipelineConfig(condition=cond)
@@ -77,7 +77,7 @@ def test_grid_condition_actually_injects_a_nonzero_topdown():
     # module settle (otherwise it would be silently identical to bare).
     task = CompositionalTask(A=4, B=4, part_dim=6, seed=2)
     dims = (task.obs_dim, 12, 12)
-    cfg = GRAILConfig(dims=dims, n_settle=6, seed=2)
+    cfg = CerebrumConfig(dims=dims, n_settle=6, seed=2)
     pc = PipelineConfig(condition="grid")
     net = train_pipeline_module(task, cfg, pc, passes=4)
     # after training the grid content store must be bound (non-zero) so its top_pred is live
@@ -88,7 +88,7 @@ def test_grid_condition_actually_injects_a_nonzero_topdown():
 def test_broadcast_condition_feeds_back_nonzero_workspace():
     task = CompositionalTask(A=4, B=4, part_dim=6, seed=3)
     dims = (task.obs_dim, 12, 12)
-    cfg = GRAILConfig(dims=dims, n_settle=6, seed=3)
+    cfg = CerebrumConfig(dims=dims, n_settle=6, seed=3)
     pc = PipelineConfig(condition="broadcast")
     net = train_pipeline_module(task, cfg, pc, passes=6)
     # broadcast slot must be populated (the module wrote its own read into the 1-slot workspace)
@@ -101,7 +101,7 @@ def test_fuse_condition_gates_plasticity_smaller_dw_than_bare():
     # NET weight movement must be no larger than the un-gated bare condition (theta<=1 shrinks dW).
     task = CompositionalTask(A=4, B=4, part_dim=6, seed=4)
     dims = (task.obs_dim, 12, 12)
-    cfg = GRAILConfig(dims=dims, n_settle=8, seed=4)
+    cfg = CerebrumConfig(dims=dims, n_settle=8, seed=4)
     bare = train_pipeline_module(task, cfg, PipelineConfig(condition="bare"), passes=10)
     fused = train_pipeline_module(task, cfg, PipelineConfig(condition="fuse"), passes=10)
     init = PCAreas(cfg)
@@ -111,8 +111,8 @@ def test_fuse_condition_gates_plasticity_smaller_dw_than_bare():
     assert mv_fuse >= 0.0
 
 
-def test_full_grailnet_condition_runs_and_returns_in_range_decode():
-    # the full-GRAILNet path (n_modules=1, real gate/workspace/grid/fuse) must produce a finite,
+def test_full_cerebrumnet_condition_runs_and_returns_in_range_decode():
+    # the full-CerebrumNet path (n_modules=1, real gate/workspace/grid/fuse) must produce a finite,
     # in-range held-out decode and a finite untrained/random-projection control.
     task = CompositionalTask(A=4, B=4, part_dim=6, seed=0)
     train, held = make_split(A=4, B=4, frac_heldout=0.3, seed=10)
