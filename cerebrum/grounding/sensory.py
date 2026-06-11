@@ -1,7 +1,18 @@
 import numpy as np
 
 class SensoryProcessor:
-    """Transforms raw sensor readings into a normalized 5-dimensional workspace state."""
+    """Transforms raw sensor readings into a normalized 5-dimensional workspace state
+    with integrated Sensor Fusion (low-pass filtering) and Domain Randomization."""
+    def __init__(self, alpha=0.8, randomize=False, noise_scale=0.02):
+        self.alpha = alpha
+        self.randomize = randomize
+        self.noise_scale = noise_scale
+        self.last_state = None
+        
+    def reset(self):
+        """Reset the sensor history."""
+        self.last_state = None
+
     def process(self, lidar_data, camera_data, odometer_data):
         # 1. Protection against None, NaN, and Inf
         if lidar_data is None:
@@ -40,4 +51,19 @@ class SensoryProcessor:
         left_cam = np.clip(left_cam, 0.0, 1.0)
         right_cam = np.clip(right_cam, 0.0, 1.0)
         
-        return np.array([min_lidar, left_cam, right_cam, velocity, heading], dtype=float)
+        state = np.array([min_lidar, left_cam, right_cam, velocity, heading], dtype=float)
+        
+        # 6. Domain Randomization (Noise Augmentation)
+        if self.randomize:
+            noise = np.random.normal(0.0, self.noise_scale, size=state.shape)
+            # 5% chance of Lidar dropout (sensor returns max range)
+            if np.random.random() < 0.05:
+                state[0] = 10.0
+            state = state + noise
+            
+        # 7. Sensor Fusion / Low-Pass Filtering
+        if self.last_state is not None:
+            state = self.alpha * state + (1.0 - self.alpha) * self.last_state
+        self.last_state = state.copy()
+        
+        return state

@@ -3,6 +3,22 @@ import torch
 from .nonlinear import g_act, g_deriv
 from .types import PyTorchListWrapper, to_tensor
 
+def _raw_tensor(x):
+    return getattr(x, "_tensor", x)
+
+@torch.jit.script
+def _jit_settle_update(x_l: torch.Tensor, Pi_l: torch.Tensor, eps_l: torch.Tensor, 
+                       gamma: float, dt: float, tau_x: float, l2_decay: float, clip_val: float):
+    # Elementwise operations:
+    drift = -Pi_l * eps_l
+    drift = drift - gamma * torch.sign(x_l)
+    if l2_decay > 0.0:
+        drift = drift - l2_decay * x_l
+    if clip_val > 0.0:
+        drift = torch.clamp(drift, -clip_val, clip_val)
+    step = (drift / tau_x) * dt
+    return step
+
 class PCAreas:
     """Hierarchical predictive-coding areas. x[l] predicted from x[l+1] by forward W[l].
     Feedback B[l] is a SEPARATE synapse (no weight transport). Precision Pi[l] is DIAGONAL."""
@@ -130,6 +146,7 @@ class PCAreas:
             e += 0.5*torch.sum(self.Pi[l]*self.eps[l]**2) - 0.5*torch.sum(torch.log(self.Pi[l]))
         return e
 
+
     def settle_step(self, rng, T, clamp_bottom=None, top_pred=None, broadcast=None, counters=None):
         self.compute_errors(top_pred=top_pred, broadcast=broadcast)
         c = self.cfg
@@ -146,13 +163,48 @@ class PCAreas:
                 new_x[0] = clamp_bottom_t.clone()
                 continue
                 
-            drift = -self.Pi[l]*self.eps[l]
+            l2_decay = getattr(c, "pc_l2_decay", 0.001)
+            clip_val = getattr(c, "pc_clip_value", 10.0)
+            
+            x_l_raw = _raw_tensor(self.x[l])
+            Pi_l_raw = _raw_tensor(self.Pi[l])
+            eps_l_raw = _raw_tensor(self.eps[l])
+            
             if l >= 1:  # feedback from area below via SEPARATE B[l-1] (no transpose of W)
-                fprime = g_deriv(self.W[l-1] @ self.x[l])
-                drift = drift + self.B[l-1] @ (fprime * (self.Pi[l-1]*self.eps[l-1]))
-            drift = drift - c.gamma*torch.sign(self.x[l])     # -dR/dx (L1 sparsity)
-            step = (drift/c.tau_x)*c.dt
-            noise = rng.normal(self.x[l].shape, scale=np.sqrt(2.0*T_val*c.dt/c.tau_x))
+                W_prev_raw = _raw_tensor(self.W[l-1])
+                x_curr_raw = _raw_tensor(self.x[l])
+                B_prev_raw = _raw_tensor(self.B[l-1])
+                Pi_prev_raw = _raw_tensor(self.Pi[l-1])
+                eps_prev_raw = _raw_tensor(self.eps[l-1])
+                
+                fprime = g_deriv(W_prev_raw @ x_curr_raw)
+                fb = B_prev_raw @ (fprime * (Pi_prev_raw * eps_prev_raw))
+            else:
+                fb = torch.zeros_like(x_l_raw)
+                
+            if getattr(c, "compile_modules", False):
+                step = _jit_settle_update(x_l_raw, Pi_l_raw, eps_l_raw, 
+                                          float(c.gamma), float(c.dt), float(c.tau_x), 
+                                          float(l2_decay), float(clip_val))
+                if l >= 1:
+                    step = step + (fb / c.tau_x) * c.dt
+            else:
+                drift = -Pi_l_raw * eps_l_raw
+                if l >= 1:
+                    drift = drift + fb
+                drift = drift - c.gamma * torch.sign(x_l_raw)
+                if clip_val > 0.0:
+                    drift = torch.clamp(drift, -clip_val, clip_val)
+                if l2_decay > 0.0:
+                    drift = drift - l2_decay * x_l_raw
+                step = (drift / c.tau_x) * c.dt
+                
+            if hasattr(rng, "normal") and not isinstance(rng, np.random.Generator):
+                noise = rng.normal(self.x[l].shape, scale=np.sqrt(2.0*T_val*c.dt/c.tau_x))
+            else:
+                scale_val = np.sqrt(2.0*T_val*c.dt/c.tau_x)
+                noise_np = rng.normal(0.0, scale_val, size=self.x[l].shape)
+                noise = torch.tensor(noise_np, device=self.device, dtype=self.dtype)
             
             with torch.no_grad():
                 new_x[l] = self.x[l] + step + noise

@@ -3,6 +3,7 @@ from .motor import MotorProcessor
 from .physics import MockPyBullet
 from .ros_node import MockRclpy, MockNode, MockPublisher, MockSubscription, std_msgs, CerebrumROSNode
 from .reflex import System1Reflex
+from .vlm_adapter import VLMAdapter
 
 __all__ = [
     'SensoryProcessor',
@@ -14,5 +15,6 @@ __all__ = [
     'MockSubscription',
     'std_msgs',
     'CerebrumROSNode',
-    'System1Reflex'
+    'System1Reflex',
+    'VLMAdapter'
 ]

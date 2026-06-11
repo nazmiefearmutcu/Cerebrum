@@ -67,6 +67,10 @@ class CerebrumNet:
         self.rng = SeededRNG(cfg.seed, device=device, dtype=dtype)
         self.counters = Counters()
         
+        # Instantiate Hippocampus episodic memory
+        from .hippocampus import Hippocampus
+        self.hippocampus = Hippocampus(key_dim=self.content_dim, capacity=1000, device=device, dtype=dtype)
+        
         # one eligibility trace AND one metaplastic fuse per module per forward layer
         self.elig = [[Eligibility((m.cfg.dims[l + 1],), cfg, device=device, dtype=dtype) for l in range(m.L - 1)] for m in self.modules]
         self.fuse = [[MetaplasticFuse(m.W[l].shape, cfg, device=device, dtype=dtype) for l in range(m.L - 1)] for m in self.modules]
@@ -104,6 +108,7 @@ class CerebrumNet:
         for m_fuse in self.fuse:
             for f in m_fuse:
                 f.to(device, self.dtype)
+        self.hippocampus.to(device, self.dtype)
         if isinstance(self.last_top_pred, torch.Tensor):
             self.last_top_pred = safe_to(self.last_top_pred, device, self.dtype)
         if self.last_theta is not None:
@@ -312,5 +317,14 @@ class CerebrumNet:
                         mod.Pi[l] = precision_update(mod.Pi[l], eps_sq=mod.eps[l] ** 2, cfg=self.cfg)
                 self.gate.learn(M=M)
                 self.gate.homeostasis(M=M)            # reward-aware homeostasis (spec FM5b)
+                
+                # Write episode to Hippocampus episodic memory (one-shot RAG)
+                key_vector = top_pred.clone()
+                episode_value = {
+                    "workspace": [s.clone().cpu().numpy() if isinstance(s, torch.Tensor) else s for s in self.workspace.slots],
+                    "reward": float(reward),
+                    "action_val": action.value.copy() if hasattr(action.value, 'copy') else action.value
+                }
+                self.hippocampus.write(key_vector, episode_value)
                 
             return z, M

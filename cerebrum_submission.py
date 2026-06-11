@@ -79,6 +79,16 @@ class CerebrumConfig:
     # misc
     pc_sparsity_threshold: float = 0.0
     seed: int = 0
+    # settling stability
+    pc_clip_value: float = 10.0      # maximum absolute value for drift
+    pc_l2_decay: float = 0.001       # L2 activity regularization (decay) to avoid explosions
+    # compilation/JIT acceleration
+    compile_modules: bool = False    # if True, JIT-compile or torch.compile predictive coding modules
+    # sensor processing & fusion
+    sensor_fusion_alpha: float = 0.8 # EMA low-pass filtering coefficient (1.0 = no filtering)
+    sensor_randomize: bool = False   # enable domain randomization/noise injection in sensory inputs
+    sensor_noise_scale: float = 0.02 # standard deviation of Gaussian noise for sensors
+
 
 
 # ==========================================
@@ -627,6 +637,22 @@ class SeededRNG:
 # ==========================================
 
 
+def _raw_tensor(x):
+    return getattr(x, "_tensor", x)
+
+@torch.jit.script
+def _jit_settle_update(x_l: torch.Tensor, Pi_l: torch.Tensor, eps_l: torch.Tensor, 
+                       gamma: float, dt: float, tau_x: float, l2_decay: float, clip_val: float):
+    # Elementwise operations:
+    drift = -Pi_l * eps_l
+    drift = drift - gamma * torch.sign(x_l)
+    if l2_decay > 0.0:
+        drift = drift - l2_decay * x_l
+    if clip_val > 0.0:
+        drift = torch.clamp(drift, -clip_val, clip_val)
+    step = (drift / tau_x) * dt
+    return step
+
 class PCAreas:
     """Hierarchical predictive-coding areas. x[l] predicted from x[l+1] by forward W[l].
     Feedback B[l] is a SEPARATE synapse (no weight transport). Precision Pi[l] is DIAGONAL."""
@@ -754,6 +780,7 @@ class PCAreas:
             e += 0.5*torch.sum(self.Pi[l]*self.eps[l]**2) - 0.5*torch.sum(torch.log(self.Pi[l]))
         return e
 
+
     def settle_step(self, rng, T, clamp_bottom=None, top_pred=None, broadcast=None, counters=None):
         self.compute_errors(top_pred=top_pred, broadcast=broadcast)
         c = self.cfg
@@ -770,13 +797,48 @@ class PCAreas:
                 new_x[0] = clamp_bottom_t.clone()
                 continue
                 
-            drift = -self.Pi[l]*self.eps[l]
+            l2_decay = getattr(c, "pc_l2_decay", 0.001)
+            clip_val = getattr(c, "pc_clip_value", 10.0)
+            
+            x_l_raw = _raw_tensor(self.x[l])
+            Pi_l_raw = _raw_tensor(self.Pi[l])
+            eps_l_raw = _raw_tensor(self.eps[l])
+            
             if l >= 1:  # feedback from area below via SEPARATE B[l-1] (no transpose of W)
-                fprime = g_deriv(self.W[l-1] @ self.x[l])
-                drift = drift + self.B[l-1] @ (fprime * (self.Pi[l-1]*self.eps[l-1]))
-            drift = drift - c.gamma*torch.sign(self.x[l])     # -dR/dx (L1 sparsity)
-            step = (drift/c.tau_x)*c.dt
-            noise = rng.normal(self.x[l].shape, scale=np.sqrt(2.0*T_val*c.dt/c.tau_x))
+                W_prev_raw = _raw_tensor(self.W[l-1])
+                x_curr_raw = _raw_tensor(self.x[l])
+                B_prev_raw = _raw_tensor(self.B[l-1])
+                Pi_prev_raw = _raw_tensor(self.Pi[l-1])
+                eps_prev_raw = _raw_tensor(self.eps[l-1])
+                
+                fprime = g_deriv(W_prev_raw @ x_curr_raw)
+                fb = B_prev_raw @ (fprime * (Pi_prev_raw * eps_prev_raw))
+            else:
+                fb = torch.zeros_like(x_l_raw)
+                
+            if getattr(c, "compile_modules", False):
+                step = _jit_settle_update(x_l_raw, Pi_l_raw, eps_l_raw, 
+                                          float(c.gamma), float(c.dt), float(c.tau_x), 
+                                          float(l2_decay), float(clip_val))
+                if l >= 1:
+                    step = step + (fb / c.tau_x) * c.dt
+            else:
+                drift = -Pi_l_raw * eps_l_raw
+                if l >= 1:
+                    drift = drift + fb
+                drift = drift - c.gamma * torch.sign(x_l_raw)
+                if clip_val > 0.0:
+                    drift = torch.clamp(drift, -clip_val, clip_val)
+                if l2_decay > 0.0:
+                    drift = drift - l2_decay * x_l_raw
+                step = (drift / c.tau_x) * c.dt
+                
+            if hasattr(rng, "normal") and not isinstance(rng, np.random.Generator):
+                noise = rng.normal(self.x[l].shape, scale=np.sqrt(2.0*T_val*c.dt/c.tau_x))
+            else:
+                scale_val = np.sqrt(2.0*T_val*c.dt/c.tau_x)
+                noise_np = rng.normal(0.0, scale_val, size=self.x[l].shape)
+                noise = torch.tensor(noise_np, device=self.device, dtype=self.dtype)
             
             with torch.no_grad():
                 new_x[l] = self.x[l] + step + noise
@@ -1228,6 +1290,113 @@ def feedback_update_kp(B, M, Pi_post, eps_post, elig, eta, lam_kp):
 
 
 # ==========================================
+# cerebrum/hippocampus.py
+# ==========================================
+
+
+class Hippocampus:
+    """Explicit Episodic Memory (Hippocampus) using Vector DB / RAG logic.
+    Stores one-shot memories as key-value pairs (e.g., key=context latent vector, value=episode detail)
+    and retrieves them using cosine similarity."""
+    def __init__(self, key_dim, capacity=1000, device='cpu', dtype=torch.float64):
+        self.key_dim = key_dim
+        self.capacity = capacity
+        self.device = device
+        self.dtype = dtype
+        
+        self.keys = torch.zeros((capacity, key_dim), device=device, dtype=dtype)
+        self.values = [None] * capacity
+        self.timestamps = np.zeros(capacity, dtype=np.int64)
+        
+        self.size = 0
+        self.clock = 0
+
+    def to(self, device, dtype=None):
+        self.device = device
+        if dtype is not None:
+            self.dtype = dtype
+        self.keys = safe_to(self.keys, device, self.dtype)
+        return self
+
+    def write(self, key, value):
+        """Write a new episodic memory key-value pair. Evicts using LRU policy if full."""
+        self.clock += 1
+        
+        # Convert key to PyTorch tensor on target device
+        if isinstance(key, (np.ndarray, list, tuple)):
+            key_t = torch.tensor(key, device=self.device, dtype=self.dtype)
+        elif isinstance(key, torch.Tensor):
+            key_t = key.to(device=self.device, dtype=self.dtype)
+        else:
+            key_t = torch.as_tensor(key, device=self.device, dtype=self.dtype)
+            
+        if key_t.dim() > 1:
+            key_t = key_t.flatten()
+            
+        if self.size < self.capacity:
+            idx = self.size
+            self.size += 1
+        else:
+            # LRU eviction: find the index with the oldest timestamp
+            idx = int(np.argmin(self.timestamps))
+            
+        self.keys[idx] = key_t
+        self.values[idx] = value
+        self.timestamps[idx] = self.clock
+        return idx
+
+    def retrieve(self, query_key, k=1, threshold=0.0):
+        """Retrieve the top-k most similar episodic memories based on cosine similarity."""
+        if self.size == 0:
+            return []
+            
+        if isinstance(query_key, (np.ndarray, list, tuple)):
+            query_t = torch.tensor(query_key, device=self.device, dtype=self.dtype)
+        elif isinstance(query_key, torch.Tensor):
+            query_t = query_key.to(device=self.device, dtype=self.dtype)
+        else:
+            query_t = torch.as_tensor(query_key, device=self.device, dtype=self.dtype)
+            
+        if query_t.dim() > 1:
+            query_t = query_t.flatten()
+            
+        # Cosine similarity: (keys * query) / (||keys|| * ||query||)
+        active_keys = self.keys[:self.size]
+        query_norm = torch.linalg.norm(query_t)
+        if query_norm == 0.0:
+            return []
+            
+        keys_norm = torch.linalg.norm(active_keys, dim=1)
+        # Avoid division by zero
+        keys_norm = torch.where(keys_norm == 0.0, torch.ones_like(keys_norm), keys_norm)
+        
+        sims = (active_keys @ query_t) / (keys_norm * query_norm)
+        
+        # Sort similarities descending
+        vals, indices = torch.sort(sims, descending=True)
+        
+        results = []
+        for i in range(min(k, self.size)):
+            sim_val = float(vals[i].item())
+            if sim_val >= threshold:
+                idx = int(indices[i].item())
+                results.append({
+                    "similarity": sim_val,
+                    "key": active_keys[idx].cpu().numpy(),
+                    "value": self.values[idx],
+                    "timestamp": int(self.timestamps[idx])
+                })
+        return results
+
+    def clear(self):
+        self.size = 0
+        self.clock = 0
+        self.keys.zero_()
+        self.values = [None] * self.capacity
+        self.timestamps.fill(0)
+
+
+# ==========================================
 # cerebrum/unified.py
 # ==========================================
 
@@ -1286,6 +1455,9 @@ class CerebrumNet:
         self.rng = SeededRNG(cfg.seed, device=device, dtype=dtype)
         self.counters = Counters()
         
+        # Instantiate Hippocampus episodic memory
+        self.hippocampus = Hippocampus(key_dim=self.content_dim, capacity=1000, device=device, dtype=dtype)
+        
         # one eligibility trace AND one metaplastic fuse per module per forward layer
         self.elig = [[Eligibility((m.cfg.dims[l + 1],), cfg, device=device, dtype=dtype) for l in range(m.L - 1)] for m in self.modules]
         self.fuse = [[MetaplasticFuse(m.W[l].shape, cfg, device=device, dtype=dtype) for l in range(m.L - 1)] for m in self.modules]
@@ -1323,6 +1495,7 @@ class CerebrumNet:
         for m_fuse in self.fuse:
             for f in m_fuse:
                 f.to(device, self.dtype)
+        self.hippocampus.to(device, self.dtype)
         if isinstance(self.last_top_pred, torch.Tensor):
             self.last_top_pred = safe_to(self.last_top_pred, device, self.dtype)
         if self.last_theta is not None:
@@ -1531,6 +1704,15 @@ class CerebrumNet:
                         mod.Pi[l] = precision_update(mod.Pi[l], eps_sq=mod.eps[l] ** 2, cfg=self.cfg)
                 self.gate.learn(M=M)
                 self.gate.homeostasis(M=M)            # reward-aware homeostasis (spec FM5b)
+                
+                # Write episode to Hippocampus episodic memory (one-shot RAG)
+                key_vector = top_pred.clone()
+                episode_value = {
+                    "workspace": [s.clone().cpu().numpy() if isinstance(s, torch.Tensor) else s for s in self.workspace.slots],
+                    "reward": float(reward),
+                    "action_val": action.value.copy() if hasattr(action.value, 'copy') else action.value
+                }
+                self.hippocampus.write(key_vector, episode_value)
                 
             return z, M
 
@@ -1816,7 +1998,18 @@ def global_comm_per_update(dims):
 
 
 class SensoryProcessor:
-    """Transforms raw sensor readings into a normalized 5-dimensional workspace state."""
+    """Transforms raw sensor readings into a normalized 5-dimensional workspace state
+    with integrated Sensor Fusion (low-pass filtering) and Domain Randomization."""
+    def __init__(self, alpha=0.8, randomize=False, noise_scale=0.02):
+        self.alpha = alpha
+        self.randomize = randomize
+        self.noise_scale = noise_scale
+        self.last_state = None
+        
+    def reset(self):
+        """Reset the sensor history."""
+        self.last_state = None
+
     def process(self, lidar_data, camera_data, odometer_data):
         # 1. Protection against None, NaN, and Inf
         if lidar_data is None:
@@ -1855,7 +2048,95 @@ class SensoryProcessor:
         left_cam = np.clip(left_cam, 0.0, 1.0)
         right_cam = np.clip(right_cam, 0.0, 1.0)
         
-        return np.array([min_lidar, left_cam, right_cam, velocity, heading], dtype=float)
+        state = np.array([min_lidar, left_cam, right_cam, velocity, heading], dtype=float)
+        
+        # 6. Domain Randomization (Noise Augmentation)
+        if self.randomize:
+            noise = np.random.normal(0.0, self.noise_scale, size=state.shape)
+            # 5% chance of Lidar dropout (sensor returns max range)
+            if np.random.random() < 0.05:
+                state[0] = 10.0
+            state = state + noise
+            
+        # 7. Sensor Fusion / Low-Pass Filtering
+        if self.last_state is not None:
+            state = self.alpha * state + (1.0 - self.alpha) * self.last_state
+        self.last_state = state.copy()
+        
+        return state
+
+
+# ==========================================
+# cerebrum/grounding/vlm_adapter.py
+# ==========================================
+
+
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+
+class VLMAdapter:
+    """Pre-trained Vision-Language Model (VLM) adapter for multimodal bootstrapping.
+    Decodes high-level natural language instructions and camera images into low-dimensional semantic representations
+    compatible with the Cerebrum workspace (System 2) and reflex modules (System 1)."""
+    def __init__(self, use_mock=True, device='cpu'):
+        self.use_mock = use_mock
+        self.device = device
+        
+        # Simple vocabulary mapping of commands to semantic vector indexes
+        # Semantic vector structure: [mug_detected, table_dirty, hazard_detected, motion_bias, speed_target]
+        self.semantic_mapping = {
+            "clean the table": np.array([0.0, 1.0, 0.0, 0.5, 0.2]),
+            "find the red mug": np.array([1.0, 0.0, 0.0, 0.8, 0.4]),
+            "avoid the obstacle": np.array([0.0, 0.0, 1.0, -0.5, 0.0]),
+            "stop immediately": np.array([0.0, 0.0, 1.0, 0.0, -1.0]),
+            "go forward": np.array([0.0, 0.0, 0.0, 1.0, 1.0]),
+            "turn left": np.array([0.0, 0.0, 0.0, -1.0, 0.5]),
+            "turn right": np.array([0.0, 0.0, 0.0, 1.0, 0.5]),
+        }
+        
+    def bootstrap_command(self, text_command):
+        """Converts a natural language instruction command into a 5-dimensional semantic workspace goal vector."""
+        text_command = text_command.strip().lower()
+        
+        # Best matches in vocabulary
+        for cmd, vec in self.semantic_mapping.items():
+            if cmd in text_command:
+                return vec.copy()
+                
+        # Heuristic lookup fallback if exact command is not in vocabulary
+        vec = np.zeros(5)
+        if "clean" in text_command or "table" in text_command:
+            vec[1] = 1.0
+            vec[3] = 0.5
+        if "mug" in text_command or "find" in text_command:
+            vec[0] = 1.0
+            vec[3] = 0.8
+        if "avoid" in text_command or "obstacle" in text_command or "hazard" in text_command:
+            vec[2] = 1.0
+            vec[3] = -0.5
+        if "stop" in text_command or "halt" in text_command:
+            vec[2] = 1.0
+            vec[4] = -1.0
+        if "forward" in text_command or "go" in text_command or "move" in text_command:
+            vec[3] = 1.0
+            vec[4] = 1.0
+            
+        return vec
+
+    def process_visual_scene(self, image_data):
+        """Processes high-dimensional camera image bytes/array and returns semantic features
+        representing target object probabilities or scene descriptors."""
+        if self.use_mock or image_data is None:
+            # Simulated visual decoding: return low-dimensional target probabilities
+            # (e.g. [mug_present=0.8, clean_indicator=0.1, obstacle_warning=0.0, background_noise=0.1, motion_flow=0.0])
+            return np.array([0.8, 0.1, 0.0, 0.1, 0.0], dtype=float)
+            
+        # In a production environment, one would load a lightweight vision transformer (ViT)
+        # e.g., features = self.vit_model(image_data)
+        return np.array([0.5, 0.5, 0.0, 0.0, 0.0], dtype=float)
 
 
 # ==========================================
@@ -2252,6 +2533,11 @@ class CerebrumROSNode(NodeClass):
         self.is_direct_state = is_direct_state
         self.reward = 1.0  # Default initial reward
         
+        # Threading for non-blocking asynchronous System 2 settling
+        self._executor_lock = threading.Lock()
+        self._thread_active = False
+        self.last_vels = np.array([0.0, 0.0])
+        
         # Publishers
         self.motor_pub = self.create_publisher(Float64MultiArrayClass, "/motor_commands")
         self.telemetry_pub = self.create_publisher(Float64MultiArrayClass, "/telemetry")
@@ -2283,105 +2569,124 @@ class CerebrumROSNode(NodeClass):
             except (TypeError, ValueError) as e:
                 self.get_logger().error(f"Error processing reward message: {e}")
             
-    def sensory_callback(self, msg):
-        with self._lock:
-            try:
-                if msg is None or not hasattr(msg, 'data'):
-                    self.get_logger().warn("Malformed sensory message: msg has no data attribute.")
-                    return
+    def _run_system2_async(self, obs_slices):
+        import threading
+        try:
+            action = Exogenous(np.zeros(2))
+            with self._lock:
+                z, M_val = self.net.step(obs_slices, action, reward=self.reward)
+                action_vector = z[:, 0] if z.ndim > 1 else z
+                vels = self.motor_processor.process(action_vector)
                 
-                # Validate and clean NaN/Inf sensory inputs
-                cleaned_data = []
-                has_invalid = False
-                for x in msg.data:
-                    val = float(x)
-                    if np.isnan(val) or np.isinf(val):
-                        cleaned_data.append(0.0)
-                        has_invalid = True
-                    else:
-                        cleaned_data.append(val)
-                if has_invalid:
-                    self.get_logger().warn("NaN/Inf detected in sensory input; replacing with 0.0.")
-                msg.data = cleaned_data
+            self.last_vels = vels
+            
+            # Publish telemetry
+            telem_msg = Float64MultiArrayClass()
+            telem_msg.data = [2.0, float(M_val)] + z.flatten().tolist()
+            self.telemetry_pub.publish(telem_msg)
+        except Exception as e:
+            self.get_logger().error(f"Error in async System 2 step: {e}")
+        finally:
+            with self._executor_lock:
+                self._thread_active = False
 
-                data_len = len(msg.data)
-                M_ = self.net.M_
-                slice_dim = self.net.modules[0].cfg.dims[0]
-                
-                bypass_active = False
-                action_u = None
-                
-                if self.reflex is not None:
-                    if self.is_direct_state and data_len == 5:
-                        state = np.asarray(msg.data, dtype=float)
-                        # Construct a dictionary matching the semantic positional mapping:
-                        # index 0: dist, index 1: tilt, index 2: error_energy
-                        state_to_evaluate = {
-                            "dist": float(state[0]),
-                            "tilt": float(state[1]),
-                            "error_energy": float(state[2])
-                        }
-                    else:
-                        if data_len >= 8:
-                            lidar = msg.data[:4]
-                            camera = msg.data[4:6]
-                            odometer = msg.data[6:8]
-                        else:
-                            lidar = msg.data
-                            camera = []
-                            odometer = []
-                        state = self.sensory_processor.process(lidar, camera, odometer)
-                        # Construct a dictionary with the correct mapping from processed state:
-                        # state[0] = min_lidar (dist)
-                        # state[1] = left_cam (camera, NOT tilt)
-                        # state[2] = right_cam (camera, NOT error_energy)
-                        # state[3] = velocity
-                        # state[4] = heading
-                        state_to_evaluate = {
-                            "dist": float(state[0]),
-                            "tilt": 0.0,
-                            "error_energy": 0.0
-                        }
-                        
-                    bypass_active, action_u = self.reflex.evaluate(state_to_evaluate)
-                    
-                if bypass_active and action_u is not None:
-                    cmd_msg = Float64MultiArrayClass()
-                    cmd_msg.data = action_u.tolist()
-                    self.motor_pub.publish(cmd_msg)
-                    
-                    telem_msg = Float64MultiArrayClass()
-                    telem_msg.data = [1.0, 0.0]
-                    self.telemetry_pub.publish(telem_msg)
+    def sensory_callback(self, msg):
+        import threading
+        try:
+            if msg is None or not hasattr(msg, 'data'):
+                self.get_logger().warn("Malformed sensory message: msg has no data attribute.")
+                return
+            
+            # Validate and clean NaN/Inf sensory inputs
+            cleaned_data = []
+            has_invalid = False
+            for x in msg.data:
+                val = float(x)
+                if np.isnan(val) or np.isinf(val):
+                    cleaned_data.append(0.0)
+                    has_invalid = True
                 else:
-                    obs_slices = []
-                    expected_len = M_ * slice_dim
-                    if data_len >= expected_len:
-                        for i in range(M_):
-                            obs_slices.append(np.array(msg.data[i*slice_dim : (i+1)*slice_dim]))
+                    cleaned_data.append(val)
+            if has_invalid:
+                self.get_logger().warn("NaN/Inf detected in sensory input; replacing with 0.0.")
+            msg.data = cleaned_data
+
+            data_len = len(msg.data)
+            M_ = self.net.M_
+            slice_dim = self.net.modules[0].cfg.dims[0]
+            
+            bypass_active = False
+            action_u = None
+            
+            if self.reflex is not None:
+                if self.is_direct_state and data_len == 5:
+                    state = np.asarray(msg.data, dtype=float)
+                    # Construct a dictionary matching the semantic positional mapping:
+                    state_to_evaluate = {
+                        "dist": float(state[0]),
+                        "tilt": float(state[1]),
+                        "error_energy": float(state[2])
+                    }
+                else:
+                    if data_len >= 8:
+                        lidar = msg.data[:4]
+                        camera = msg.data[4:6]
+                        odometer = msg.data[6:8]
                     else:
-                        flat_data = np.zeros(expected_len)
-                        n_copy = min(data_len, expected_len)
-                        flat_data[:n_copy] = msg.data[:n_copy]
-                        for i in range(M_):
-                            obs_slices.append(flat_data[i*slice_dim : (i+1)*slice_dim])
+                        lidar = msg.data
+                        camera = []
+                        odometer = []
+                    state = self.sensory_processor.process(lidar, camera, odometer)
+                    state_to_evaluate = {
+                        "dist": float(state[0]),
+                        "tilt": 0.0,
+                        "error_energy": 0.0
+                    }
                     
-                    action = Exogenous(np.zeros(2))
-                    
-                    z, M_val = self.net.step(obs_slices, action, reward=self.reward)
-                    
-                    action_vector = z[:, 0] if z.ndim > 1 else z
-                    vels = self.motor_processor.process(action_vector)
-                    
-                    cmd_msg = Float64MultiArrayClass()
-                    cmd_msg.data = vels.tolist()
-                    self.motor_pub.publish(cmd_msg)
-                    
-                    telem_msg = Float64MultiArrayClass()
-                    telem_msg.data = [2.0, float(M_val)] + z.flatten().tolist()
-                    self.telemetry_pub.publish(telem_msg)
-            except (TypeError, ValueError) as e:
-                self.get_logger().error(f"Error processing sensory message: {e}")
+                bypass_active, action_u = self.reflex.evaluate(state_to_evaluate)
+                
+            if bypass_active and action_u is not None:
+                # System 1: Low-latency reflex bypass executed instantly in the callback thread
+                cmd_msg = Float64MultiArrayClass()
+                cmd_msg.data = action_u.tolist()
+                self.motor_pub.publish(cmd_msg)
+                
+                telem_msg = Float64MultiArrayClass()
+                telem_msg.data = [1.0, 0.0]
+                self.telemetry_pub.publish(telem_msg)
+            else:
+                obs_slices = []
+                expected_len = M_ * slice_dim
+                if data_len >= expected_len:
+                    for i in range(M_):
+                        obs_slices.append(np.array(msg.data[i*slice_dim : (i+1)*slice_dim]))
+                else:
+                    flat_data = np.zeros(expected_len)
+                    n_copy = min(data_len, expected_len)
+                    flat_data[:n_copy] = msg.data[:n_copy]
+                    for i in range(M_):
+                        obs_slices.append(flat_data[i*slice_dim : (i+1)*slice_dim])
+                
+                # Decoupled async dispatch of System 2
+                start_thread = False
+                with self._executor_lock:
+                    if not self._thread_active:
+                        self._thread_active = True
+                        start_thread = True
+                
+                if start_thread:
+                    t = threading.Thread(target=self._run_system2_async, args=(obs_slices,))
+                    t.daemon = True
+                    t.start()
+                
+                # Publish the latest computed motor commands (zero-order hold)
+                cmd_msg = Float64MultiArrayClass()
+                cmd_msg.data = self.last_vels.tolist()
+                self.motor_pub.publish(cmd_msg)
+                
+        except (TypeError, ValueError) as e:
+            self.get_logger().error(f"Error processing sensory message: {e}")
+
 
 
 # ==========================================
@@ -2442,5 +2747,6 @@ __all__ = [
     'MockSubscription',
     'std_msgs',
     'CerebrumROSNode',
-    'System1Reflex'
+    'System1Reflex',
+    'VLMAdapter'
 ]

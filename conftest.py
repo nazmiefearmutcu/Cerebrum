@@ -14,7 +14,8 @@ if os.path.exists(submission_path):
     submodule_names = [
         "config", "counters", "types", "invariants", "grid_head", "neuromod",
         "nonlinear", "pc_core", "plasticity", "rng", "core_net", "gate",
-        "metaplasticity", "workspace", "unified", "workspace_net", "energy", "grounding"
+        "metaplasticity", "workspace", "unified", "workspace_net", "energy", "grounding",
+        "hippocampus", "grounding.vlm_adapter"
     ]
     
     for name in submodule_names:
@@ -23,6 +24,14 @@ if os.path.exists(submission_path):
         for key, val in cerebrum_mod.__dict__.items():
             setattr(submod, key, val)
         sys.modules[full_name] = submod
-        setattr(cerebrum_mod, name, submod)
+        
+        # Link to parent module
+        parts = name.split(".")
+        curr = cerebrum_mod
+        for p in parts[:-1]:
+            if not hasattr(curr, p):
+                setattr(curr, p, types.ModuleType(f"cerebrum.{p}"))
+            curr = getattr(curr, p)
+        setattr(curr, parts[-1], submod)
 
 sys.path.insert(0, os.path.dirname(__file__))

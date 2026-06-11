@@ -149,6 +149,11 @@ class CerebrumROSNode(NodeClass):
         self.is_direct_state = is_direct_state
         self.reward = 1.0  # Default initial reward
         
+        # Threading for non-blocking asynchronous System 2 settling
+        self._executor_lock = threading.Lock()
+        self._thread_active = False
+        self.last_vels = np.array([0.0, 0.0])
+        
         # Publishers
         self.motor_pub = self.create_publisher(Float64MultiArrayClass, "/motor_commands")
         self.telemetry_pub = self.create_publisher(Float64MultiArrayClass, "/telemetry")
@@ -180,102 +185,121 @@ class CerebrumROSNode(NodeClass):
             except (TypeError, ValueError) as e:
                 self.get_logger().error(f"Error processing reward message: {e}")
             
-    def sensory_callback(self, msg):
-        with self._lock:
-            try:
-                if msg is None or not hasattr(msg, 'data'):
-                    self.get_logger().warn("Malformed sensory message: msg has no data attribute.")
-                    return
+    def _run_system2_async(self, obs_slices):
+        import threading
+        try:
+            action = Exogenous(np.zeros(2))
+            with self._lock:
+                z, M_val = self.net.step(obs_slices, action, reward=self.reward)
+                action_vector = z[:, 0] if z.ndim > 1 else z
+                vels = self.motor_processor.process(action_vector)
                 
-                # Validate and clean NaN/Inf sensory inputs
-                cleaned_data = []
-                has_invalid = False
-                for x in msg.data:
-                    val = float(x)
-                    if np.isnan(val) or np.isinf(val):
-                        cleaned_data.append(0.0)
-                        has_invalid = True
-                    else:
-                        cleaned_data.append(val)
-                if has_invalid:
-                    self.get_logger().warn("NaN/Inf detected in sensory input; replacing with 0.0.")
-                msg.data = cleaned_data
+            self.last_vels = vels
+            
+            # Publish telemetry
+            telem_msg = Float64MultiArrayClass()
+            telem_msg.data = [2.0, float(M_val)] + z.flatten().tolist()
+            self.telemetry_pub.publish(telem_msg)
+        except Exception as e:
+            self.get_logger().error(f"Error in async System 2 step: {e}")
+        finally:
+            with self._executor_lock:
+                self._thread_active = False
 
-                data_len = len(msg.data)
-                M_ = self.net.M_
-                slice_dim = self.net.modules[0].cfg.dims[0]
-                
-                bypass_active = False
-                action_u = None
-                
-                if self.reflex is not None:
-                    if self.is_direct_state and data_len == 5:
-                        state = np.asarray(msg.data, dtype=float)
-                        # Construct a dictionary matching the semantic positional mapping:
-                        # index 0: dist, index 1: tilt, index 2: error_energy
-                        state_to_evaluate = {
-                            "dist": float(state[0]),
-                            "tilt": float(state[1]),
-                            "error_energy": float(state[2])
-                        }
-                    else:
-                        if data_len >= 8:
-                            lidar = msg.data[:4]
-                            camera = msg.data[4:6]
-                            odometer = msg.data[6:8]
-                        else:
-                            lidar = msg.data
-                            camera = []
-                            odometer = []
-                        state = self.sensory_processor.process(lidar, camera, odometer)
-                        # Construct a dictionary with the correct mapping from processed state:
-                        # state[0] = min_lidar (dist)
-                        # state[1] = left_cam (camera, NOT tilt)
-                        # state[2] = right_cam (camera, NOT error_energy)
-                        # state[3] = velocity
-                        # state[4] = heading
-                        state_to_evaluate = {
-                            "dist": float(state[0]),
-                            "tilt": 0.0,
-                            "error_energy": 0.0
-                        }
-                        
-                    bypass_active, action_u = self.reflex.evaluate(state_to_evaluate)
-                    
-                if bypass_active and action_u is not None:
-                    cmd_msg = Float64MultiArrayClass()
-                    cmd_msg.data = action_u.tolist()
-                    self.motor_pub.publish(cmd_msg)
-                    
-                    telem_msg = Float64MultiArrayClass()
-                    telem_msg.data = [1.0, 0.0]
-                    self.telemetry_pub.publish(telem_msg)
+    def sensory_callback(self, msg):
+        import threading
+        try:
+            if msg is None or not hasattr(msg, 'data'):
+                self.get_logger().warn("Malformed sensory message: msg has no data attribute.")
+                return
+            
+            # Validate and clean NaN/Inf sensory inputs
+            cleaned_data = []
+            has_invalid = False
+            for x in msg.data:
+                val = float(x)
+                if np.isnan(val) or np.isinf(val):
+                    cleaned_data.append(0.0)
+                    has_invalid = True
                 else:
-                    obs_slices = []
-                    expected_len = M_ * slice_dim
-                    if data_len >= expected_len:
-                        for i in range(M_):
-                            obs_slices.append(np.array(msg.data[i*slice_dim : (i+1)*slice_dim]))
+                    cleaned_data.append(val)
+            if has_invalid:
+                self.get_logger().warn("NaN/Inf detected in sensory input; replacing with 0.0.")
+            msg.data = cleaned_data
+
+            data_len = len(msg.data)
+            M_ = self.net.M_
+            slice_dim = self.net.modules[0].cfg.dims[0]
+            
+            bypass_active = False
+            action_u = None
+            
+            if self.reflex is not None:
+                if self.is_direct_state and data_len == 5:
+                    state = np.asarray(msg.data, dtype=float)
+                    # Construct a dictionary matching the semantic positional mapping:
+                    state_to_evaluate = {
+                        "dist": float(state[0]),
+                        "tilt": float(state[1]),
+                        "error_energy": float(state[2])
+                    }
+                else:
+                    if data_len >= 8:
+                        lidar = msg.data[:4]
+                        camera = msg.data[4:6]
+                        odometer = msg.data[6:8]
                     else:
-                        flat_data = np.zeros(expected_len)
-                        n_copy = min(data_len, expected_len)
-                        flat_data[:n_copy] = msg.data[:n_copy]
-                        for i in range(M_):
-                            obs_slices.append(flat_data[i*slice_dim : (i+1)*slice_dim])
+                        lidar = msg.data
+                        camera = []
+                        odometer = []
+                    state = self.sensory_processor.process(lidar, camera, odometer)
+                    state_to_evaluate = {
+                        "dist": float(state[0]),
+                        "tilt": 0.0,
+                        "error_energy": 0.0
+                    }
                     
-                    action = Exogenous(np.zeros(2))
-                    
-                    z, M_val = self.net.step(obs_slices, action, reward=self.reward)
-                    
-                    action_vector = z[:, 0] if z.ndim > 1 else z
-                    vels = self.motor_processor.process(action_vector)
-                    
-                    cmd_msg = Float64MultiArrayClass()
-                    cmd_msg.data = vels.tolist()
-                    self.motor_pub.publish(cmd_msg)
-                    
-                    telem_msg = Float64MultiArrayClass()
-                    telem_msg.data = [2.0, float(M_val)] + z.flatten().tolist()
-                    self.telemetry_pub.publish(telem_msg)
-            except (TypeError, ValueError) as e:
-                self.get_logger().error(f"Error processing sensory message: {e}")
+                bypass_active, action_u = self.reflex.evaluate(state_to_evaluate)
+                
+            if bypass_active and action_u is not None:
+                # System 1: Low-latency reflex bypass executed instantly in the callback thread
+                cmd_msg = Float64MultiArrayClass()
+                cmd_msg.data = action_u.tolist()
+                self.motor_pub.publish(cmd_msg)
+                
+                telem_msg = Float64MultiArrayClass()
+                telem_msg.data = [1.0, 0.0]
+                self.telemetry_pub.publish(telem_msg)
+            else:
+                obs_slices = []
+                expected_len = M_ * slice_dim
+                if data_len >= expected_len:
+                    for i in range(M_):
+                        obs_slices.append(np.array(msg.data[i*slice_dim : (i+1)*slice_dim]))
+                else:
+                    flat_data = np.zeros(expected_len)
+                    n_copy = min(data_len, expected_len)
+                    flat_data[:n_copy] = msg.data[:n_copy]
+                    for i in range(M_):
+                        obs_slices.append(flat_data[i*slice_dim : (i+1)*slice_dim])
+                
+                # Decoupled async dispatch of System 2
+                start_thread = False
+                with self._executor_lock:
+                    if not self._thread_active:
+                        self._thread_active = True
+                        start_thread = True
+                
+                if start_thread:
+                    t = threading.Thread(target=self._run_system2_async, args=(obs_slices,))
+                    t.daemon = True
+                    t.start()
+                
+                # Publish the latest computed motor commands (zero-order hold)
+                cmd_msg = Float64MultiArrayClass()
+                cmd_msg.data = self.last_vels.tolist()
+                self.motor_pub.publish(cmd_msg)
+                
+        except (TypeError, ValueError) as e:
+            self.get_logger().error(f"Error processing sensory message: {e}")
+

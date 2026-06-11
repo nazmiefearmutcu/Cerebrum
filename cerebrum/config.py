@@ -69,3 +69,13 @@ class CerebrumConfig:
     # misc
     pc_sparsity_threshold: float = 0.0
     seed: int = 0
+    # settling stability
+    pc_clip_value: float = 10.0      # maximum absolute value for drift
+    pc_l2_decay: float = 0.001       # L2 activity regularization (decay) to avoid explosions
+    # compilation/JIT acceleration
+    compile_modules: bool = False    # if True, JIT-compile or torch.compile predictive coding modules
+    # sensor processing & fusion
+    sensor_fusion_alpha: float = 0.8 # EMA low-pass filtering coefficient (1.0 = no filtering)
+    sensor_randomize: bool = False   # enable domain randomization/noise injection in sensory inputs
+    sensor_noise_scale: float = 0.02 # standard deviation of Gaussian noise for sensors
+

@@ -14,11 +14,13 @@ files_order = [
     "cerebrum/neuromod.py",
     "cerebrum/metaplasticity.py",
     "cerebrum/plasticity.py",
+    "cerebrum/hippocampus.py",
     "cerebrum/unified.py",
     "cerebrum/workspace_net.py",
     "cerebrum/core_net.py",
     "cerebrum/energy.py",
     "cerebrum/grounding/sensory.py",
+    "cerebrum/grounding/vlm_adapter.py",
     "cerebrum/grounding/motor.py",
     "cerebrum/grounding/physics.py",
     "cerebrum/grounding/ros_node.py",
@@ -41,12 +43,12 @@ for fp in files_order:
     filtered_lines = []
     for line in lines:
         # Filter out local imports
-        if re.search(r"from\s+\.+(config|counters|types|invariants|nonlinear|rng|pc_core|grid_head|gate|workspace|neuromod|metaplasticity|plasticity|unified|workspace_net|core_net|energy|invariants|sensory|motor|physics|ros_node|reflex|grounding)", line):
+        if re.search(r"from\s+\.+(config|counters|types|invariants|nonlinear|rng|pc_core|grid_head|gate|workspace|neuromod|metaplasticity|plasticity|unified|workspace_net|core_net|energy|invariants|sensory|motor|physics|ros_node|reflex|grounding|hippocampus|vlm_adapter)", line):
             continue
         if re.match(r"^(import\s+numpy|import\s+torch|from\s+dataclasses|import\s+types|from\s+datetime)", line):
             continue
         filtered_lines.append(line)
-    content.append(f"\\n# ==========================================\\n# {fp}\\n# ==========================================\\n")
+    content.append(f"\n# ==========================================\n# {fp}\n# ==========================================\n")
     content.append("".join(filtered_lines))
 
 # Replace escape sequences
