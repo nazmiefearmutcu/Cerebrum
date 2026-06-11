@@ -32,7 +32,7 @@ from .gate import BasalGangliaGate
 from .workspace import Workspace
 from .neuromod import Neuromodulator
 from .metaplasticity import MetaplasticFuse
-from .plasticity import Eligibility, weight_update, precision_update, feedback_update
+from .plasticity import Eligibility, weight_update, precision_update, feedback_update, feedback_update_kp
 from .counters import Counters
 from .rng import SeededRNG
 from .invariants import assert_scalar_M
@@ -46,6 +46,7 @@ class CerebrumNet:
         self.cfg = cfg
         self.M_ = n_modules
         self.k = k_slots
+        self.slice_dim = slice_dim
         self.device = device
         self.dtype = dtype
         
@@ -168,12 +169,13 @@ class CerebrumNet:
         `T=None` uses the running inference temperature (>= T_floor, the learning-time regularizer);
         pass `T=0.0` for a deterministic noise-free readout that reflects the learned WEIGHTS rather
         than the settling floor (the same convention the Stage-3 measurement uses)."""
-        self.grid.transition(action)
-        top_pred = self._top_pred_from_grid(self.modules[0].cfg.dims[0])
-        self.last_top_pred = top_pred.clone()
-        wksp = self.workspace.broadcast()
-        T = self.nm.temperature(0.0) if T is None else T
-        return self._settle_all(obs_slices, top_pred, wksp, T)
+        with self._lock:
+            self.grid.transition(action)
+            top_pred = self._top_pred_from_grid(self.modules[0].cfg.dims[0])
+            self.last_top_pred = top_pred.clone()
+            wksp = self.workspace.broadcast()
+            T = self.nm.temperature(0.0) if T is None else T
+            return self._settle_all(obs_slices, top_pred, wksp, T)
 
     # ------------------------------------------------------------------ full step
     def step(self, obs_slices, action: Exogenous, reward):
@@ -216,6 +218,30 @@ class CerebrumNet:
             # Sanitize obs_slices
             sanitized_obs_slices = []
             for obs in obs_slices:
+                if isinstance(obs, (list, tuple)):
+                    for item in obs:
+                        if isinstance(item, (str, dict)):
+                            raise TypeError("Observations must be numeric.")
+                try:
+                    if isinstance(obs, torch.Tensor):
+                        if obs.dtype not in (torch.float16, torch.float32, torch.float64, torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8):
+                            raise TypeError("Observations must be numeric.")
+                        obs_conv = obs.to(device=self.device, dtype=self.dtype)
+                    elif isinstance(obs, np.ndarray):
+                        if obs.dtype.kind not in 'bifc':
+                            raise TypeError("Observations must be numeric.")
+                        obs_conv = torch.as_tensor(obs, device=self.device, dtype=self.dtype)
+                    else:
+                        arr = np.array(obs, dtype=np.float64)
+                        if arr.dtype.kind not in 'bifc':
+                            raise TypeError("Observations must be numeric.")
+                        obs_conv = torch.as_tensor(arr, device=self.device, dtype=self.dtype)
+                except (ValueError, TypeError) as e:
+                    raise TypeError("Observations must be numeric.") from e
+
+                if len(obs_conv) != self.slice_dim:
+                    raise ValueError(f"Observation slice length must match slice_dim={self.slice_dim}")
+
                 if isinstance(obs, torch.Tensor):
                     if not torch.isfinite(obs).all():
                         obs = torch.where(torch.isfinite(obs), obs, torch.zeros_like(obs))
@@ -223,10 +249,7 @@ class CerebrumNet:
                     if not np.isfinite(obs).all():
                         obs = np.where(np.isfinite(obs), obs, 0.0)
                 else:
-                    obs_arr = np.asarray(obs)
-                    if not np.isfinite(obs_arr).all():
-                        obs_arr = np.where(np.isfinite(obs_arr), obs_arr, 0.0)
-                    obs = obs_arr
+                    obs = obs_conv
                 sanitized_obs_slices.append(obs)
             obs_slices = sanitized_obs_slices
 
@@ -274,11 +297,17 @@ class CerebrumNet:
                         dW = weight_update(M=M, theta=theta, Pi_post=mod.Pi[l],
                                                   eps_post=mod.eps[l], elig=self.elig[m_i][l].value,
                                                   eta=self.cfg.eta_w / self.cfg.tau_w)
-                        mod.W[l] += dW
-                        
-                        dB = (1.0 / self.cfg.tau_b) * feedback_update(mod.B[l], a_up=mod.x[l + 1],
-                                                                             eps=mod.eps[l], cfg=self.cfg)
-                        mod.B[l] += dB
+                        if self.cfg.align_feedback:
+                            mod.W[l] += dW - self.cfg.lam_kp * mod.W[l]
+                            mod.B[l] += feedback_update_kp(mod.B[l], M=M, Pi_post=mod.Pi[l],
+                                                           eps_post=mod.eps[l], elig=self.elig[m_i][l].value,
+                                                           eta=self.cfg.eta_w / self.cfg.tau_w,
+                                                           lam_kp=self.cfg.lam_kp)
+                        else:
+                            mod.W[l] += dW
+                            dB = (1.0 / self.cfg.tau_b) * feedback_update(mod.B[l], a_up=mod.x[l + 1],
+                                                                                 eps=mod.eps[l], cfg=self.cfg)
+                            mod.B[l] += dB
                         
                         mod.Pi[l] = precision_update(mod.Pi[l], eps_sq=mod.eps[l] ** 2, cfg=self.cfg)
                 self.gate.learn(M=M)

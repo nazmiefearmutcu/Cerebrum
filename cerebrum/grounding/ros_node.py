@@ -138,7 +138,7 @@ else:
     Float64MultiArrayClass = ROSFloat64MultiArray
 
 class CerebrumROSNode(NodeClass):
-    def __init__(self, net, node_name="cerebrum_ros_node", reflex=None, sensory_processor=None, motor_processor=None):
+    def __init__(self, net, node_name="cerebrum_ros_node", reflex=None, sensory_processor=None, motor_processor=None, is_direct_state=False):
         super().__init__(node_name)
         import threading
         self._lock = threading.RLock()
@@ -146,6 +146,7 @@ class CerebrumROSNode(NodeClass):
         self.reflex = reflex
         self.sensory_processor = sensory_processor or SensoryProcessor()
         self.motor_processor = motor_processor or MotorProcessor()
+        self.is_direct_state = is_direct_state
         self.reward = 1.0  # Default initial reward
         
         # Publishers
@@ -208,7 +209,7 @@ class CerebrumROSNode(NodeClass):
                 action_u = None
                 
                 if self.reflex is not None:
-                    if data_len == 5:
+                    if self.is_direct_state and data_len == 5:
                         state = np.asarray(msg.data, dtype=float)
                         # Construct a dictionary matching the semantic positional mapping:
                         # index 0: dist, index 1: tilt, index 2: error_energy

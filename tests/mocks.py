@@ -285,6 +285,7 @@ class TorchCerebrumNet:
         self.cfg = np_net.cfg
         self.M_ = np_net.M_
         self.k = np_net.k
+        self.slice_dim = np_net.slice_dim
         self.content_dim = np_net.content_dim
         self.device = device
         
@@ -412,6 +413,7 @@ def patch_cerebrum_net():
     
     def new_init(self, n_modules, k_slots, slice_dim, cfg):
         original_init(self, n_modules, k_slots, slice_dim, cfg)
+        self.slice_dim = slice_dim
         self._backend = "numpy"
         self._device = "cpu"
         self._torch_net = None

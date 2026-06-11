@@ -44,6 +44,8 @@ class MockPyBullet:
                 pass
         
     def loadURDF(self, urdf_path, basePosition=(0.0, 0.0, 0.0), baseOrientation=(0.0, 0.0, 0.0, 1.0)):
+        if baseOrientation is not None and len(baseOrientation) != 4:
+            raise ValueError("Orientation must be a 4-element quaternion.")
         body_id = len(self.bodies) + 1
         self.bodies[body_id] = {
             "path": urdf_path,

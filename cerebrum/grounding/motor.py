@@ -47,7 +47,7 @@ class MotorProcessor:
                         if b_val.shape[0] != W_motor.shape[0]:
                             b_val = np.zeros(W_motor.shape[0])
                         vels = np.dot(W_motor, action_vector) + b_val
-            except ValueError:
+            except (ValueError, TypeError, AttributeError):
                 vels = np.zeros(2)
         else:
             # Discrete workspace gating mapping (Default Mock)
@@ -64,4 +64,7 @@ class MotorProcessor:
                 else:
                     vels = np.array([0.0, 0.0])  # Standby
                 
+        vels = np.asarray(vels)
+        if np.isnan(vels).any() or np.isinf(vels).any():
+            vels = np.zeros_like(vels)
         return np.clip(vels, -self.u_sat, self.u_sat)

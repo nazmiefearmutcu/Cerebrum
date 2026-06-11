@@ -8,14 +8,14 @@
   },
   "profiling": {
     "system2": {
-      "mean_latency_us": 2230.4304300000003,
+      "mean_latency_us": 1275.04709,
       "mean_synaptic_ops": 52608.0
     },
     "system1": {
-      "mean_latency_us": 1.36291,
+      "mean_latency_us": 1.13667,
       "mean_synaptic_ops": 0.0
     },
-    "latency_ratio": 1636.52070202728,
+    "latency_ratio": 1121.7390183606499,
     "ratio_passes_threshold": true
   }
 }

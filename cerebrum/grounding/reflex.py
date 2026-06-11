@@ -8,6 +8,10 @@ class System1Reflex:
         self.last_escape_time = 0.0
         
     def evaluate(self, sensory_state):
+        import torch
+        if isinstance(sensory_state, (list, tuple, np.ndarray, torch.Tensor)):
+            if len(sensory_state) < 3:
+                raise ValueError("Sensory state sequence must have at least 3 elements.")
         if isinstance(sensory_state, dict):
             dist = sensory_state.get("dist", 0.0)
             tilt = sensory_state.get("tilt", 0.0)
