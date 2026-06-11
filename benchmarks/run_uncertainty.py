@@ -31,7 +31,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root on path
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network import CerebrumCore
+from cerebrum.core_net import CerebrumCore
 from cerebrum.rng import SeededRNG
 from cerebrum.types import Exogenous
 from benchmarks.tasks.gridworld import make_episode

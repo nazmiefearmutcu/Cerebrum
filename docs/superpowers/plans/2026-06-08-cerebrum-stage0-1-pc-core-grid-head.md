@@ -769,7 +769,7 @@ def test_completion_generalizes_to_path_integrated_location():
 
 ## Task 12: CerebrumCore assembly (Stage-1: PC areas + grid HEAD, no gate)
 
-**Files:** Create `cerebrum/network.py`; Test `tests/test_network.py`
+**Files:** Create `cerebrum/core_net.py`; Test `tests/test_network.py`
 
 Wires the grid HEAD's decoded completion as the top-down prediction to the top PC area, runs settling, then a local-plasticity learning step. No gate/workspace yet (Stage 2). Verifies invariants + counters fire.
 
@@ -777,7 +777,7 @@ Wires the grid HEAD's decoded completion as the top-down prediction to the top P
 ```python
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network import CerebrumCore
+from cerebrum.core_net import CerebrumCore
 from cerebrum.types import Exogenous
 
 def test_observe_learn_predict_runs_and_counts():
@@ -797,7 +797,7 @@ def test_no_weight_transport_used():
         assert net.pc.B[l].shape == net.pc.W[l].T.shape    # shapes compatible but separate synapses
 ```
 
-- [ ] **Step 2: Fail. Step 3: Implement** `cerebrum/network.py`:
+- [ ] **Step 2: Fail. Step 3: Implement** `cerebrum/core_net.py`:
 ```python
 import numpy as np
 from .pc_core import PCAreas
@@ -945,7 +945,7 @@ The model walks the episode (binding obs at each visited cell via exogenous acti
 ```python
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network import CerebrumCore
+from cerebrum.core_net import CerebrumCore
 from benchmarks.tasks.gridworld import make_episode
 from benchmarks.tasks.graph_completion import run_cerebrum_episode
 
@@ -1094,7 +1094,7 @@ def test_cerebrum_grid_beats_flat_prior_averaged():
 ```python
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network import CerebrumCore
+from cerebrum.core_net import CerebrumCore
 from benchmarks.tasks.gridworld import make_episode
 from benchmarks.tasks.graph_completion import run_cerebrum_episode
 from benchmarks.baselines.flat_prior import run_flat_episode

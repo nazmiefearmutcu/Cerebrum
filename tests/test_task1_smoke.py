@@ -1,7 +1,7 @@
 import numpy as np
 from benchmarks.tasks.gridworld import GridWorld, make_episode
 from cerebrum.config import CerebrumConfig
-from cerebrum.network import CerebrumCore
+from cerebrum.core_net import CerebrumCore
 from benchmarks.tasks.graph_completion import run_cerebrum_episode
 
 def test_gridworld_obs_are_consistent_per_cell():

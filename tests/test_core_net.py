@@ -1,6 +1,6 @@
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network import CerebrumCore
+from cerebrum.core_net import CerebrumCore
 from cerebrum.types import Exogenous
 
 def test_observe_learn_predict_runs_and_counts():

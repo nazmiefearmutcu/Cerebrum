@@ -1,6 +1,6 @@
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network import CerebrumCore
+from cerebrum.core_net import CerebrumCore
 from benchmarks.tasks.transitive import make_episode, LinearOrder
 from benchmarks.tasks.transitive_cerebrum import run_cerebrum_episode
 from benchmarks.baselines.flat_prior_transitive import run_flat_episode

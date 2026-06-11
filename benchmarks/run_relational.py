@@ -14,7 +14,7 @@ import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root on path
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network import CerebrumCore
+from cerebrum.core_net import CerebrumCore
 from benchmarks.tasks.relational import make_episode, run_cerebrum_episode, RelationalGraph, TreeRelationalGraph
 from benchmarks.baselines.flat_prior_relational import run_flat_relational_episode
 from benchmarks.baselines.backprop_mlp_relational import run_mlp_relational_episode

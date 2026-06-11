@@ -1,6 +1,6 @@
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network2 import CerebrumWorkspaceNet
+from cerebrum.workspace_net import CerebrumWorkspaceNet
 from cerebrum.invariants import assert_one_hot
 
 def test_step_runs_routes_and_counts():

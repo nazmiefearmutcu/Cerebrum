@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 import numpy as np
 
 from cerebrum.config import CerebrumConfig
-from cerebrum.network import CerebrumCore
+from cerebrum.core_net import CerebrumCore
 from cerebrum.pc_core import PCAreas
 from cerebrum.plasticity import Eligibility, weight_update, precision_update, feedback_update
 from cerebrum.metaplasticity import MetaplasticFuse

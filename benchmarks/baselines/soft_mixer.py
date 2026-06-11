@@ -1,6 +1,6 @@
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network2 import CerebrumWorkspaceNet
+from cerebrum.workspace_net import CerebrumWorkspaceNet
 from cerebrum.plasticity import weight_update, precision_update, feedback_update
 
 class SoftWorkspace:

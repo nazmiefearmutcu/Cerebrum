@@ -10,7 +10,7 @@ This file includes smoke tests for both the standard RelationalGraph and TreeRel
 """
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network import CerebrumCore
+from cerebrum.core_net import CerebrumCore
 from benchmarks.tasks.relational import (
     RelationalGraph, TreeRelationalGraph, make_episode, run_cerebrum_episode,
 )

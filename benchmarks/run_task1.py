@@ -2,7 +2,7 @@ import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root on path
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network import CerebrumCore
+from cerebrum.core_net import CerebrumCore
 from benchmarks.tasks.gridworld import make_episode
 from benchmarks.tasks.graph_completion import run_cerebrum_episode
 from benchmarks.baselines.flat_prior import run_flat_episode

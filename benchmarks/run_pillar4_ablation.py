@@ -35,8 +35,8 @@ from dataclasses import replace
 import numpy as np
 
 from cerebrum.config import CerebrumConfig
-from cerebrum.network import CerebrumCore
-from cerebrum.network2 import CerebrumWorkspaceNet
+from cerebrum.core_net import CerebrumCore
+from cerebrum.workspace_net import CerebrumWorkspaceNet
 from cerebrum.pc_core import PCAreas
 from cerebrum.plasticity import Eligibility, weight_update, precision_update, feedback_update
 from cerebrum.metaplasticity import MetaplasticFuse

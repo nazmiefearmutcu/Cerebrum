@@ -196,7 +196,7 @@ def test_homeostasis_raises_excitability_of_starved_module():
 
 ## Task 4: CerebrumWorkspaceNet — multi-module + gate + workspace + broadcast loop
 
-**Files:** Create `cerebrum/network2.py`, `tests/test_network2.py`
+**Files:** Create `cerebrum/workspace_net.py`, `tests/test_network2.py`
 
 M cortical modules, each a `PCAreas` on its own input slice; per step: settle each module with the current broadcast as top-down; compute each module's `err_sq = Σ‖ε‖²`; bid; select one-hot winners; write winners' top-area content to slots; broadcast back; learn (module plasticity + gate learning + homeostasis). The broadcast re-entering settling is the seed of emergent routing.
 
@@ -204,7 +204,7 @@ M cortical modules, each a `PCAreas` on its own input slice; per step: settle ea
 ```python
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network2 import CerebrumWorkspaceNet
+from cerebrum.workspace_net import CerebrumWorkspaceNet
 from cerebrum.invariants import assert_one_hot
 
 def test_step_runs_routes_and_counts():
@@ -224,7 +224,7 @@ def test_broadcast_influences_modules():
     assert np.any(net.workspace.slots != 0)              # a winner wrote content that will broadcast next step
 ```
 
-- [ ] **Step 2: Fail. Step 3: Implement** `cerebrum/network2.py`:
+- [ ] **Step 2: Fail. Step 3: Implement** `cerebrum/workspace_net.py`:
 ```python
 import numpy as np
 from .pc_core import PCAreas
@@ -314,7 +314,7 @@ def test_routing_accuracy_rises_above_chance():
 ```python
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network2 import CerebrumWorkspaceNet
+from cerebrum.workspace_net import CerebrumWorkspaceNet
 
 def run_binding(n_modules=4, k_slots=1, trials=400, seed=0):
     rng = np.random.default_rng(seed)
@@ -366,7 +366,7 @@ def test_soft_mixer_collapses_to_undifferentiated_mixing():
 ```python
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network2 import CerebrumWorkspaceNet
+from cerebrum.workspace_net import CerebrumWorkspaceNet
 
 class SoftWorkspace:
     """ABLATION ONLY — the FORBIDDEN soft write W_j = sum_m P(win_j=m) read(m). This is a gated

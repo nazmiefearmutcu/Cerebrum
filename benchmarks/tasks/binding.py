@@ -1,6 +1,6 @@
 import numpy as np
 from cerebrum.config import CerebrumConfig
-from cerebrum.network2 import CerebrumWorkspaceNet
+from cerebrum.workspace_net import CerebrumWorkspaceNet
 
 def run_binding(n_modules=4, k_slots=1, trials=400, seed=0,
                 explore_reward=2.0, reward_scale=5.0, gate_temp=0.1, lam_g=0.05):
