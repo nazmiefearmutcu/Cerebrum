@@ -257,3 +257,35 @@ python3 benchmarks/run_stage3.py
 # Run the full exploratory scaling sweeps
 python3 benchmarks/run_scaling.py
 ```
+
+---
+
+## 9. Cognitive & Embodied Enhancements (Gap Fixes)
+
+We have addressed the critical scientific adequacy and robotics embodiment gaps highlighted during architectural review:
+
+### 1. Settling Stability & Numerical Bounds
+* **Gradient/Drift Clipping:** Clamps the PC state update drift to `pc_clip_value` (default `10.0`) in [pc_core.py](file:///Users/nazmi/Cerebrum/cerebrum/pc_core.py) to prevent gradient explosions during Langevin settling.
+* **L2 Regularization:** Introduces L2 activity decay (`pc_l2_decay`, default `0.001`) that acts after gradient clipping as an absolute proportional recovery pull to prevent state variables from exploding.
+* **Dual-RNG Parity:** Ensures that Langevin noise generation is mathematically stable when using both raw NumPy random `Generator` classes and custom `SeededRNG` wrappers.
+
+### 2. Continual Learning Rehearsal Baselines
+To supplement EWC, we implemented modern replay-based methods in [benchmarks/baselines/er.py](file:///Users/nazmi/Cerebrum/benchmarks/baselines/er.py):
+* **Experience Replay (ER):** Interleaves past task sensory representations stored in an episodic buffer into the active PC areas training loop.
+* **Dark Experience Replay (DER++):** Distills knowledge by storing past inputs along with the top-level latent prediction ($z_{rep}$) when first learned, applying an L2 logit-matching distillation loss during subsequent task updates.
+
+### 3. Non-Blocking Real-Time Latency (Decoupled System 1 & 2)
+* **JIT Compiled Settling:** Enables loop fused-elementwise settling acceleration via PyTorch JIT tracing (`torch.jit.script`) controlled by the `compile_modules` flag.
+* **Asynchronous Thread Decoupling:** Re-architected `CerebrumROSNode` in [ros_node.py](file:///Users/nazmi/Cerebrum/cerebrum/grounding/ros_node.py). Low-latency System 1 reflexes are executed instantly, whereas slow System 2 settling is dispatched asynchronously to a background daemon thread, publishing actions instantly via a zero-order hold buffer.
+
+### 4. Sim2Real Noise Tolerance & Sensor Fusion
+* **Sensor Fusion Filter:** Integrates an Exponential Moving Average (EMA) low-pass filter (controlled by `sensor_fusion_alpha`, default `0.8`) inside [sensory.py](file:///Users/nazmi/Cerebrum/cerebrum/grounding/sensory.py) to smooth noisy LiDAR, camera, and odometry inputs.
+* **Domain Randomization:** Implements online noise injection (`sensor_noise_scale`, default `0.02`) and random sensor dropouts to train representations robust to real physical noise.
+
+### 5. Explicit Episodic Memory (Hippocampus Vector RAG)
+* **One-Shot Episodic Store:** Built a vector-parallel `Hippocampus` module in [hippocampus.py](file:///Users/nazmi/Cerebrum/cerebrum/hippocampus.py) utilizing cosine similarity for key-value retrieval and an LRU eviction policy.
+* **CerebrumNet Integration:** Automatically records state-action-reward snapshots indexed by the top-down predictive prior at each `step` of `CerebrumNet` in [unified.py](file:///Users/nazmi/Cerebrum/cerebrum/unified.py).
+
+### 6. Multimodal Bootstrapping (VLM Adapter)
+* **Vision-Language Adaptation:** Implemented a pre-trained `VLMAdapter` in [vlm_adapter.py](file:///Users/nazmi/Cerebrum/cerebrum/grounding/vlm_adapter.py) that translates natural language text instructions and camera images into low-dimensional semantic goal vectors, bypassing tabula rasa training.
+
