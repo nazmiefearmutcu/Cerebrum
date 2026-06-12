@@ -68,7 +68,7 @@ class CerebrumCore:
         with torch.no_grad():
             for l in range(self.pc.L-1):
                 self.elig[l].step(a_pre=self.pc.x[l+1])
-                eta_w = self.cfg.eta_w/self.cfg.tau_w
+                eta_w = self.cfg.eta_w/max(self.cfg.tau_w, 1e-6)
                 dW = weight_update(M=M, theta=torch.ones_like(self.pc.W[l]),
                                    Pi_post=self.pc.Pi[l], eps_post=self.pc.eps[l],
                                    elig=self.elig[l].value, eta=eta_w)
@@ -79,7 +79,7 @@ class CerebrumCore:
                                        eta=eta_w, lam_kp=self.cfg.lam_kp)
                 else:
                     self.pc.W[l] += dW
-                    self.pc.B[l] += (1.0/self.cfg.tau_b)*feedback_update(self.pc.B[l],
+                    self.pc.B[l] += (1.0/max(self.cfg.tau_b, 1e-6))*feedback_update(self.pc.B[l],
                                        a_up=self.pc.x[l+1], eps=self.pc.eps[l], cfg=self.cfg)
                 self.pc.Pi[l] = precision_update(self.pc.Pi[l], eps_sq=self.pc.eps[l]**2, cfg=self.cfg)
         return M

@@ -90,7 +90,7 @@ class CerebrumWorkspaceNet:
             for m_i, mod in enumerate(self.modules):
                 for l in range(mod.L-1):
                     self.elig[m_i][l].step(a_pre=mod.x[l+1])
-                    eta_w = self.cfg.eta_w/self.cfg.tau_w
+                    eta_w = self.cfg.eta_w/max(self.cfg.tau_w, 1e-6)
                     dW = weight_update(M=M, theta=torch.ones_like(mod.W[l]), Pi_post=mod.Pi[l],
                                        eps_post=mod.eps[l], elig=self.elig[m_i][l].value, eta=eta_w)
                     if self.cfg.align_feedback:
@@ -100,7 +100,7 @@ class CerebrumWorkspaceNet:
                                        eta=eta_w, lam_kp=self.cfg.lam_kp)
                     else:
                         mod.W[l] += dW
-                        mod.B[l] += (1.0/self.cfg.tau_b)*feedback_update(mod.B[l], a_up=mod.x[l+1], eps=mod.eps[l], cfg=self.cfg)
+                        mod.B[l] += (1.0/max(self.cfg.tau_b, 1e-6))*feedback_update(mod.B[l], a_up=mod.x[l+1], eps=mod.eps[l], cfg=self.cfg)
                     mod.Pi[l] = precision_update(mod.Pi[l], eps_sq=mod.eps[l]**2, cfg=self.cfg)
             self.gate.learn(M=M)
             self.gate.homeostasis(M=M)   # reward-aware homeostasis (spec FM5b)

@@ -20,7 +20,7 @@ class Eligibility:
     def step(self, a_pre):
         a_pre_t = to_tensor(a_pre, self.device, self.dtype)
         with torch.no_grad():
-            self.value += (1.0/self.cfg.tau_e)*(a_pre_t - self.value)
+            self.value += (1.0/max(self.cfg.tau_e, 1e-6))*(a_pre_t - self.value)
         return self.value
 
 def weight_update(M, theta, Pi_post, eps_post, elig, eta):
@@ -54,7 +54,8 @@ def precision_update(Pi, eps_sq, cfg):
     target = 1.0 / torch.clamp(cfg.sigma0**2 + eps_sq_t, min=1e-6)
     with torch.no_grad():
         dPi = cfg.kappa_pi * (target - Pi_t)
-        val = Pi_t + (1.0/cfg.tau_pi)*dPi
+        val = Pi_t + (1.0 / max(cfg.tau_pi, 1e-6)) * dPi
+        val = torch.clamp(val, min=1e-6)
     return val
 
 def feedback_update(B, a_up, eps, cfg):
@@ -69,10 +70,11 @@ def feedback_update(B, a_up, eps, cfg):
         val = cfg.eta_b * torch.outer(a_up_t, eps_t) - cfg.lam_b * B_t
     return val
 
-def feedback_update_kp(B, M, Pi_post, eps_post, elig, eta, lam_kp):
+def feedback_update_kp(B, M, Pi_post, eps_post, elig, eta, lam_kp, theta=None):
     """Kolen-Pollack feedback-alignment rule (OPT-IN). Drives B[l] (shape (out_up, in_post.T)
     i.e. (d[l+1], d[l])) toward W[l].T using the SAME local four-factor product that updates
-    W[l] -- only TRANSPOSED -- plus a MATCHED symmetric weight decay.
+    W[l] -- only TRANSPOSED and gated by the transposed metaplastic consolidation tensor theta --
+    plus a MATCHED symmetric weight decay.
     """
     device = B.device if hasattr(B, 'device') else 'cpu'
     dtype = B.dtype if hasattr(B, 'dtype') else torch.float64
@@ -86,5 +88,9 @@ def feedback_update_kp(B, M, Pi_post, eps_post, elig, eta, lam_kp):
     post = Pi_post_t * eps_post_t
     pre = elig_t
     with torch.no_grad():
-        val = eta * M_t * torch.outer(pre, post) - lam_kp * B_t
+        if theta is not None:
+            theta_t = to_tensor(theta, device, dtype)
+            val = eta * M_t * theta_t.t() * torch.outer(pre, post) - lam_kp * B_t
+        else:
+            val = eta * M_t * torch.outer(pre, post) - lam_kp * B_t
     return val

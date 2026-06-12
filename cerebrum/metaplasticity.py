@@ -36,8 +36,8 @@ class MetaplasticFuse:
         
         with torch.no_grad():
             dc = self.cfg.alpha_c*predictive*(self.cfg.c_max - self.c) - self.cfg.beta_c*surprising*self.c
-            self.c = torch.clamp(self.c + (1.0/self.cfg.tau_c)*dc, 0.0, self.cfg.c_max)
-            self.S_bar += (1.0/self.cfg.tau_S) * (S_raw - self.S_bar)   # baseline EMA (after it is used)
+            self.c = torch.clamp(self.c + (1.0/max(self.cfg.tau_c, 1e-6))*dc, 0.0, self.cfg.c_max)
+            self.S_bar += (1.0/max(self.cfg.tau_S, 1e-6)) * (S_raw - self.S_bar)   # baseline EMA (after it is used)
             exponent = -self.cfg.g_theta * (S - self.c)
             exponent = torch.clamp(exponent, min=-50.0, max=50.0)
             theta = 1.0 / (1.0 + torch.exp(exponent))  # sigma(g(S - c))

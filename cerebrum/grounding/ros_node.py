@@ -193,8 +193,7 @@ class CerebrumROSNode(NodeClass):
                 z, M_val = self.net.step(obs_slices, action, reward=self.reward)
                 action_vector = z[:, 0] if z.ndim > 1 else z
                 vels = self.motor_processor.process(action_vector)
-                
-            self.last_vels = vels
+                self.last_vels = vels
             
             # Publish telemetry
             telem_msg = Float64MultiArrayClass()
@@ -297,7 +296,8 @@ class CerebrumROSNode(NodeClass):
                 
                 # Publish the latest computed motor commands (zero-order hold)
                 cmd_msg = Float64MultiArrayClass()
-                cmd_msg.data = self.last_vels.tolist()
+                with self._lock:
+                    cmd_msg.data = self.last_vels.tolist()
                 self.motor_pub.publish(cmd_msg)
                 
         except (TypeError, ValueError) as e:

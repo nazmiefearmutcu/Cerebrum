@@ -7,16 +7,15 @@ def _raw_tensor(x):
     return getattr(x, "_tensor", x)
 
 @torch.jit.script
-def _jit_settle_update(x_l: torch.Tensor, Pi_l: torch.Tensor, eps_l: torch.Tensor, 
+def _jit_settle_update(x_l: torch.Tensor, Pi_l: torch.Tensor, eps_l: torch.Tensor, fb: torch.Tensor,
                        gamma: float, dt: float, tau_x: float, l2_decay: float, clip_val: float):
-    # Elementwise operations:
-    drift = -Pi_l * eps_l
+    drift = -Pi_l * eps_l + fb
     drift = drift - gamma * torch.sign(x_l)
     if l2_decay > 0.0:
         drift = drift - l2_decay * x_l
     if clip_val > 0.0:
         drift = torch.clamp(drift, -clip_val, clip_val)
-    step = (drift / tau_x) * dt
+    step = (drift / max(tau_x, 1e-6)) * dt
     return step
 
 class PCAreas:
@@ -183,26 +182,24 @@ class PCAreas:
                 fb = torch.zeros_like(x_l_raw)
                 
             if getattr(c, "compile_modules", False):
-                step = _jit_settle_update(x_l_raw, Pi_l_raw, eps_l_raw, 
+                step = _jit_settle_update(x_l_raw, Pi_l_raw, eps_l_raw, fb,
                                           float(c.gamma), float(c.dt), float(c.tau_x), 
                                           float(l2_decay), float(clip_val))
-                if l >= 1:
-                    step = step + (fb / c.tau_x) * c.dt
             else:
                 drift = -Pi_l_raw * eps_l_raw
                 if l >= 1:
                     drift = drift + fb
                 drift = drift - c.gamma * torch.sign(x_l_raw)
-                if clip_val > 0.0:
-                    drift = torch.clamp(drift, -clip_val, clip_val)
                 if l2_decay > 0.0:
                     drift = drift - l2_decay * x_l_raw
-                step = (drift / c.tau_x) * c.dt
+                if clip_val > 0.0:
+                    drift = torch.clamp(drift, -clip_val, clip_val)
+                step = (drift / max(c.tau_x, 1e-6)) * c.dt
                 
             if hasattr(rng, "normal") and not isinstance(rng, np.random.Generator):
-                noise = rng.normal(self.x[l].shape, scale=np.sqrt(2.0*T_val*c.dt/c.tau_x))
+                noise = rng.normal(self.x[l].shape, scale=np.sqrt(2.0*T_val*c.dt/max(c.tau_x, 1e-6)))
             else:
-                scale_val = np.sqrt(2.0*T_val*c.dt/c.tau_x)
+                scale_val = np.sqrt(2.0*T_val*c.dt/max(c.tau_x, 1e-6))
                 noise_np = rng.normal(0.0, scale_val, size=self.x[l].shape)
                 noise = torch.tensor(noise_np, device=self.device, dtype=self.dtype)
             

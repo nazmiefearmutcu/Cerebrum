@@ -179,6 +179,13 @@ class TensorSliceWrapper:
         other_t = to_tensor(other_t, self._device, self._dtype)
         return other_t + self._tensor
 
+    def __iadd__(self, other):
+        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
+        other_t = to_tensor(other_t, self._device, self._dtype)
+        with torch.no_grad():
+            self._tensor.copy_(self._tensor + other_t)
+        return self
+
     def __sub__(self, other):
         other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
         other_t = to_tensor(other_t, self._device, self._dtype)
@@ -188,6 +195,13 @@ class TensorSliceWrapper:
         other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
         other_t = to_tensor(other_t, self._device, self._dtype)
         return other_t - self._tensor
+
+    def __isub__(self, other):
+        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
+        other_t = to_tensor(other_t, self._device, self._dtype)
+        with torch.no_grad():
+            self._tensor.copy_(self._tensor - other_t)
+        return self
 
     def __mul__(self, other):
         other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
@@ -199,6 +213,13 @@ class TensorSliceWrapper:
         other_t = to_tensor(other_t, self._device, self._dtype)
         return other_t * self._tensor
 
+    def __imul__(self, other):
+        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
+        other_t = to_tensor(other_t, self._device, self._dtype)
+        with torch.no_grad():
+            self._tensor.copy_(self._tensor * other_t)
+        return self
+
     def __truediv__(self, other):
         other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
         other_t = to_tensor(other_t, self._device, self._dtype)
@@ -208,6 +229,13 @@ class TensorSliceWrapper:
         other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
         other_t = to_tensor(other_t, self._device, self._dtype)
         return other_t / self._tensor
+
+    def __itruediv__(self, other):
+        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
+        other_t = to_tensor(other_t, self._device, self._dtype)
+        with torch.no_grad():
+            self._tensor.copy_(self._tensor / other_t)
+        return self
 
     def __matmul__(self, other):
         other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
@@ -286,29 +314,6 @@ class TensorSliceWrapper:
     def copy(self):
         return TensorSliceWrapper(self._tensor.clone(), self._device, self._dtype)
 
-    def __lt__(self, other):
-        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
-        return self._tensor < other_t
-
-    def __le__(self, other):
-        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
-        return self._tensor <= other_t
-
-    def __gt__(self, other):
-        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
-        return self._tensor > other_t
-
-    def __ge__(self, other):
-        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
-        return self._tensor >= other_t
-
-    def __eq__(self, other):
-        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
-        return self._tensor == other_t
-
-    def __ne__(self, other):
-        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
-        return self._tensor != other_t
 
     @property
     def ndim(self):

@@ -307,6 +307,13 @@ class TensorSliceWrapper:
         other_t = to_tensor(other_t, self._device, self._dtype)
         return other_t + self._tensor
 
+    def __iadd__(self, other):
+        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
+        other_t = to_tensor(other_t, self._device, self._dtype)
+        with torch.no_grad():
+            self._tensor.copy_(self._tensor + other_t)
+        return self
+
     def __sub__(self, other):
         other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
         other_t = to_tensor(other_t, self._device, self._dtype)
@@ -316,6 +323,13 @@ class TensorSliceWrapper:
         other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
         other_t = to_tensor(other_t, self._device, self._dtype)
         return other_t - self._tensor
+
+    def __isub__(self, other):
+        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
+        other_t = to_tensor(other_t, self._device, self._dtype)
+        with torch.no_grad():
+            self._tensor.copy_(self._tensor - other_t)
+        return self
 
     def __mul__(self, other):
         other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
@@ -327,6 +341,13 @@ class TensorSliceWrapper:
         other_t = to_tensor(other_t, self._device, self._dtype)
         return other_t * self._tensor
 
+    def __imul__(self, other):
+        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
+        other_t = to_tensor(other_t, self._device, self._dtype)
+        with torch.no_grad():
+            self._tensor.copy_(self._tensor * other_t)
+        return self
+
     def __truediv__(self, other):
         other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
         other_t = to_tensor(other_t, self._device, self._dtype)
@@ -336,6 +357,13 @@ class TensorSliceWrapper:
         other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
         other_t = to_tensor(other_t, self._device, self._dtype)
         return other_t / self._tensor
+
+    def __itruediv__(self, other):
+        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
+        other_t = to_tensor(other_t, self._device, self._dtype)
+        with torch.no_grad():
+            self._tensor.copy_(self._tensor / other_t)
+        return self
 
     def __matmul__(self, other):
         other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
@@ -414,29 +442,6 @@ class TensorSliceWrapper:
     def copy(self):
         return TensorSliceWrapper(self._tensor.clone(), self._device, self._dtype)
 
-    def __lt__(self, other):
-        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
-        return self._tensor < other_t
-
-    def __le__(self, other):
-        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
-        return self._tensor <= other_t
-
-    def __gt__(self, other):
-        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
-        return self._tensor > other_t
-
-    def __ge__(self, other):
-        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
-        return self._tensor >= other_t
-
-    def __eq__(self, other):
-        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
-        return self._tensor == other_t
-
-    def __ne__(self, other):
-        other_t = other._tensor if isinstance(other, TensorSliceWrapper) else other
-        return self._tensor != other_t
 
     @property
     def ndim(self):
@@ -641,16 +646,15 @@ def _raw_tensor(x):
     return getattr(x, "_tensor", x)
 
 @torch.jit.script
-def _jit_settle_update(x_l: torch.Tensor, Pi_l: torch.Tensor, eps_l: torch.Tensor, 
+def _jit_settle_update(x_l: torch.Tensor, Pi_l: torch.Tensor, eps_l: torch.Tensor, fb: torch.Tensor,
                        gamma: float, dt: float, tau_x: float, l2_decay: float, clip_val: float):
-    # Elementwise operations:
-    drift = -Pi_l * eps_l
+    drift = -Pi_l * eps_l + fb
     drift = drift - gamma * torch.sign(x_l)
     if l2_decay > 0.0:
         drift = drift - l2_decay * x_l
     if clip_val > 0.0:
         drift = torch.clamp(drift, -clip_val, clip_val)
-    step = (drift / tau_x) * dt
+    step = (drift / max(tau_x, 1e-6)) * dt
     return step
 
 class PCAreas:
@@ -817,26 +821,24 @@ class PCAreas:
                 fb = torch.zeros_like(x_l_raw)
                 
             if getattr(c, "compile_modules", False):
-                step = _jit_settle_update(x_l_raw, Pi_l_raw, eps_l_raw, 
+                step = _jit_settle_update(x_l_raw, Pi_l_raw, eps_l_raw, fb,
                                           float(c.gamma), float(c.dt), float(c.tau_x), 
                                           float(l2_decay), float(clip_val))
-                if l >= 1:
-                    step = step + (fb / c.tau_x) * c.dt
             else:
                 drift = -Pi_l_raw * eps_l_raw
                 if l >= 1:
                     drift = drift + fb
                 drift = drift - c.gamma * torch.sign(x_l_raw)
-                if clip_val > 0.0:
-                    drift = torch.clamp(drift, -clip_val, clip_val)
                 if l2_decay > 0.0:
                     drift = drift - l2_decay * x_l_raw
-                step = (drift / c.tau_x) * c.dt
+                if clip_val > 0.0:
+                    drift = torch.clamp(drift, -clip_val, clip_val)
+                step = (drift / max(c.tau_x, 1e-6)) * c.dt
                 
             if hasattr(rng, "normal") and not isinstance(rng, np.random.Generator):
-                noise = rng.normal(self.x[l].shape, scale=np.sqrt(2.0*T_val*c.dt/c.tau_x))
+                noise = rng.normal(self.x[l].shape, scale=np.sqrt(2.0*T_val*c.dt/max(c.tau_x, 1e-6)))
             else:
-                scale_val = np.sqrt(2.0*T_val*c.dt/c.tau_x)
+                scale_val = np.sqrt(2.0*T_val*c.dt/max(c.tau_x, 1e-6))
                 noise_np = rng.normal(0.0, scale_val, size=self.x[l].shape)
                 noise = torch.tensor(noise_np, device=self.device, dtype=self.dtype)
             
@@ -1124,7 +1126,7 @@ class Neuromodulator:
         else:
             reward_val = float(reward)
         M = reward_val - self.r_bar
-        self.r_bar += (1.0/self.cfg.tau_r) * (reward_val - self.r_bar)  # EMA
+        self.r_bar += (1.0/max(self.cfg.tau_r, 1e-6)) * (reward_val - self.r_bar)  # EMA
         return torch.tensor(M, device=self.device, dtype=self.dtype)
 
     def temperature(self, M):
@@ -1134,8 +1136,10 @@ class Neuromodulator:
 
     def pi_gain(self, M):
         if isinstance(M, torch.Tensor):
-            return 1.0 / (1.0 + torch.exp(-self.a_Pi * M))
-        return 1.0 / (1.0 + np.exp(-self.a_Pi * float(M)))
+            clamped_input = torch.clamp(-self.a_Pi * M, min=-50.0, max=50.0)
+            return 1.0 / (1.0 + torch.exp(clamped_input))
+        clamped_input = np.clip(-self.a_Pi * float(M), -50.0, 50.0)
+        return 1.0 / (1.0 + np.exp(clamped_input))
 
     def eta(self, M):
         if isinstance(M, torch.Tensor):
@@ -1144,8 +1148,8 @@ class Neuromodulator:
 
     def t_gate(self, M, eps=1e-3):
         if isinstance(M, torch.Tensor):
-            return 1.0 / (torch.abs(M) + eps)
-        return 1.0 / (abs(float(M)) + eps)
+            return 1.0 / (torch.abs(M) + max(eps, 1e-6))
+        return 1.0 / (abs(float(M)) + max(eps, 1e-6))
 
 
 # ==========================================
@@ -1188,8 +1192,8 @@ class MetaplasticFuse:
         
         with torch.no_grad():
             dc = self.cfg.alpha_c*predictive*(self.cfg.c_max - self.c) - self.cfg.beta_c*surprising*self.c
-            self.c = torch.clamp(self.c + (1.0/self.cfg.tau_c)*dc, 0.0, self.cfg.c_max)
-            self.S_bar += (1.0/self.cfg.tau_S) * (S_raw - self.S_bar)   # baseline EMA (after it is used)
+            self.c = torch.clamp(self.c + (1.0/max(self.cfg.tau_c, 1e-6))*dc, 0.0, self.cfg.c_max)
+            self.S_bar += (1.0/max(self.cfg.tau_S, 1e-6)) * (S_raw - self.S_bar)   # baseline EMA (after it is used)
             exponent = -self.cfg.g_theta * (S - self.c)
             exponent = torch.clamp(exponent, min=-50.0, max=50.0)
             theta = 1.0 / (1.0 + torch.exp(exponent))  # sigma(g(S - c))
@@ -1219,7 +1223,7 @@ class Eligibility:
     def step(self, a_pre):
         a_pre_t = to_tensor(a_pre, self.device, self.dtype)
         with torch.no_grad():
-            self.value += (1.0/self.cfg.tau_e)*(a_pre_t - self.value)
+            self.value += (1.0/max(self.cfg.tau_e, 1e-6))*(a_pre_t - self.value)
         return self.value
 
 def weight_update(M, theta, Pi_post, eps_post, elig, eta):
@@ -1253,7 +1257,8 @@ def precision_update(Pi, eps_sq, cfg):
     target = 1.0 / torch.clamp(cfg.sigma0**2 + eps_sq_t, min=1e-6)
     with torch.no_grad():
         dPi = cfg.kappa_pi * (target - Pi_t)
-        val = Pi_t + (1.0/cfg.tau_pi)*dPi
+        val = Pi_t + (1.0 / max(cfg.tau_pi, 1e-6)) * dPi
+        val = torch.clamp(val, min=1e-6)
     return val
 
 def feedback_update(B, a_up, eps, cfg):
@@ -1268,10 +1273,11 @@ def feedback_update(B, a_up, eps, cfg):
         val = cfg.eta_b * torch.outer(a_up_t, eps_t) - cfg.lam_b * B_t
     return val
 
-def feedback_update_kp(B, M, Pi_post, eps_post, elig, eta, lam_kp):
+def feedback_update_kp(B, M, Pi_post, eps_post, elig, eta, lam_kp, theta=None):
     """Kolen-Pollack feedback-alignment rule (OPT-IN). Drives B[l] (shape (out_up, in_post.T)
     i.e. (d[l+1], d[l])) toward W[l].T using the SAME local four-factor product that updates
-    W[l] -- only TRANSPOSED -- plus a MATCHED symmetric weight decay.
+    W[l] -- only TRANSPOSED and gated by the transposed metaplastic consolidation tensor theta --
+    plus a MATCHED symmetric weight decay.
     """
     device = B.device if hasattr(B, 'device') else 'cpu'
     dtype = B.dtype if hasattr(B, 'dtype') else torch.float64
@@ -1285,7 +1291,11 @@ def feedback_update_kp(B, M, Pi_post, eps_post, elig, eta, lam_kp):
     post = Pi_post_t * eps_post_t
     pre = elig_t
     with torch.no_grad():
-        val = eta * M_t * torch.outer(pre, post) - lam_kp * B_t
+        if theta is not None:
+            theta_t = to_tensor(theta, device, dtype)
+            val = eta * M_t * theta_t.t() * torch.outer(pre, post) - lam_kp * B_t
+        else:
+            val = eta * M_t * torch.outer(pre, post) - lam_kp * B_t
     return val
 
 
@@ -1608,6 +1618,11 @@ class CerebrumNet:
                         action = Exogenous(v_arr)
 
             # Sanitize obs_slices
+            if not isinstance(obs_slices, (list, tuple)):
+                raise TypeError("obs_slices must be a list or tuple of slices.")
+            if len(obs_slices) != self.M_:
+                raise ValueError(f"Number of observation slices ({len(obs_slices)}) must match n_modules={self.M_}")
+
             sanitized_obs_slices = []
             for obs in obs_slices:
                 if isinstance(obs, (list, tuple)):
@@ -1631,18 +1646,16 @@ class CerebrumNet:
                 except (ValueError, TypeError) as e:
                     raise TypeError("Observations must be numeric.") from e
 
+                # After converting to obs_conv:
+                if obs_conv.ndim != 1:
+                    raise ValueError("Each observation slice must be a 1D tensor/array.")
+
                 if len(obs_conv) != self.slice_dim:
                     raise ValueError(f"Observation slice length must match slice_dim={self.slice_dim}")
 
-                if isinstance(obs, torch.Tensor):
-                    if not torch.isfinite(obs).all():
-                        obs = torch.where(torch.isfinite(obs), obs, torch.zeros_like(obs))
-                elif isinstance(obs, np.ndarray):
-                    if not np.isfinite(obs).all():
-                        obs = np.where(np.isfinite(obs), obs, 0.0)
-                else:
-                    obs = obs_conv
-                sanitized_obs_slices.append(obs)
+                if not torch.isfinite(obs_conv).all():
+                    obs_conv = torch.where(torch.isfinite(obs_conv), obs_conv, torch.zeros_like(obs_conv))
+                sanitized_obs_slices.append(obs_conv)
             obs_slices = sanitized_obs_slices
 
             # (1) Stage-1: grid HEAD path-integrates on the EXOGENOUS action (BAN-5 enforced inside
@@ -1688,16 +1701,16 @@ class CerebrumNet:
                         
                         dW = weight_update(M=M, theta=theta, Pi_post=mod.Pi[l],
                                                   eps_post=mod.eps[l], elig=self.elig[m_i][l].value,
-                                                  eta=self.cfg.eta_w / self.cfg.tau_w)
+                                                  eta=self.cfg.eta_w / max(self.cfg.tau_w, 1e-6))
                         if self.cfg.align_feedback:
                             mod.W[l] += dW - self.cfg.lam_kp * mod.W[l]
-                            mod.B[l] += feedback_update_kp(mod.B[l], M=M, Pi_post=mod.Pi[l],
+                            mod.B[l] += feedback_update_kp(mod.B[l], M=M, theta=theta, Pi_post=mod.Pi[l],
                                                            eps_post=mod.eps[l], elig=self.elig[m_i][l].value,
-                                                           eta=self.cfg.eta_w / self.cfg.tau_w,
+                                                           eta=self.cfg.eta_w / max(self.cfg.tau_w, 1e-6),
                                                            lam_kp=self.cfg.lam_kp)
                         else:
                             mod.W[l] += dW
-                            dB = (1.0 / self.cfg.tau_b) * feedback_update(mod.B[l], a_up=mod.x[l + 1],
+                            dB = (1.0 / max(self.cfg.tau_b, 1e-6)) * feedback_update(mod.B[l], a_up=mod.x[l + 1],
                                                                                  eps=mod.eps[l], cfg=self.cfg)
                             mod.B[l] += dB
                         
@@ -1801,7 +1814,7 @@ class CerebrumWorkspaceNet:
             for m_i, mod in enumerate(self.modules):
                 for l in range(mod.L-1):
                     self.elig[m_i][l].step(a_pre=mod.x[l+1])
-                    eta_w = self.cfg.eta_w/self.cfg.tau_w
+                    eta_w = self.cfg.eta_w/max(self.cfg.tau_w, 1e-6)
                     dW = weight_update(M=M, theta=torch.ones_like(mod.W[l]), Pi_post=mod.Pi[l],
                                        eps_post=mod.eps[l], elig=self.elig[m_i][l].value, eta=eta_w)
                     if self.cfg.align_feedback:
@@ -1811,7 +1824,7 @@ class CerebrumWorkspaceNet:
                                        eta=eta_w, lam_kp=self.cfg.lam_kp)
                     else:
                         mod.W[l] += dW
-                        mod.B[l] += (1.0/self.cfg.tau_b)*feedback_update(mod.B[l], a_up=mod.x[l+1], eps=mod.eps[l], cfg=self.cfg)
+                        mod.B[l] += (1.0/max(self.cfg.tau_b, 1e-6))*feedback_update(mod.B[l], a_up=mod.x[l+1], eps=mod.eps[l], cfg=self.cfg)
                     mod.Pi[l] = precision_update(mod.Pi[l], eps_sq=mod.eps[l]**2, cfg=self.cfg)
             self.gate.learn(M=M)
             self.gate.homeostasis(M=M)   # reward-aware homeostasis (spec FM5b)
@@ -1883,7 +1896,7 @@ class CerebrumCore:
         with torch.no_grad():
             for l in range(self.pc.L-1):
                 self.elig[l].step(a_pre=self.pc.x[l+1])
-                eta_w = self.cfg.eta_w/self.cfg.tau_w
+                eta_w = self.cfg.eta_w/max(self.cfg.tau_w, 1e-6)
                 dW = weight_update(M=M, theta=torch.ones_like(self.pc.W[l]),
                                    Pi_post=self.pc.Pi[l], eps_post=self.pc.eps[l],
                                    elig=self.elig[l].value, eta=eta_w)
@@ -1894,7 +1907,7 @@ class CerebrumCore:
                                        eta=eta_w, lam_kp=self.cfg.lam_kp)
                 else:
                     self.pc.W[l] += dW
-                    self.pc.B[l] += (1.0/self.cfg.tau_b)*feedback_update(self.pc.B[l],
+                    self.pc.B[l] += (1.0/max(self.cfg.tau_b, 1e-6))*feedback_update(self.pc.B[l],
                                        a_up=self.pc.x[l+1], eps=self.pc.eps[l], cfg=self.cfg)
                 self.pc.Pi[l] = precision_update(self.pc.Pi[l], eps_sq=self.pc.eps[l]**2, cfg=self.cfg)
         return M
@@ -2577,8 +2590,7 @@ class CerebrumROSNode(NodeClass):
                 z, M_val = self.net.step(obs_slices, action, reward=self.reward)
                 action_vector = z[:, 0] if z.ndim > 1 else z
                 vels = self.motor_processor.process(action_vector)
-                
-            self.last_vels = vels
+                self.last_vels = vels
             
             # Publish telemetry
             telem_msg = Float64MultiArrayClass()
@@ -2681,7 +2693,8 @@ class CerebrumROSNode(NodeClass):
                 
                 # Publish the latest computed motor commands (zero-order hold)
                 cmd_msg = Float64MultiArrayClass()
-                cmd_msg.data = self.last_vels.tolist()
+                with self._lock:
+                    cmd_msg.data = self.last_vels.tolist()
                 self.motor_pub.publish(cmd_msg)
                 
         except (TypeError, ValueError) as e:

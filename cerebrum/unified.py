@@ -221,6 +221,11 @@ class CerebrumNet:
                         action = Exogenous(v_arr)
 
             # Sanitize obs_slices
+            if not isinstance(obs_slices, (list, tuple)):
+                raise TypeError("obs_slices must be a list or tuple of slices.")
+            if len(obs_slices) != self.M_:
+                raise ValueError(f"Number of observation slices ({len(obs_slices)}) must match n_modules={self.M_}")
+
             sanitized_obs_slices = []
             for obs in obs_slices:
                 if isinstance(obs, (list, tuple)):
@@ -244,18 +249,16 @@ class CerebrumNet:
                 except (ValueError, TypeError) as e:
                     raise TypeError("Observations must be numeric.") from e
 
+                # After converting to obs_conv:
+                if obs_conv.ndim != 1:
+                    raise ValueError("Each observation slice must be a 1D tensor/array.")
+
                 if len(obs_conv) != self.slice_dim:
                     raise ValueError(f"Observation slice length must match slice_dim={self.slice_dim}")
 
-                if isinstance(obs, torch.Tensor):
-                    if not torch.isfinite(obs).all():
-                        obs = torch.where(torch.isfinite(obs), obs, torch.zeros_like(obs))
-                elif isinstance(obs, np.ndarray):
-                    if not np.isfinite(obs).all():
-                        obs = np.where(np.isfinite(obs), obs, 0.0)
-                else:
-                    obs = obs_conv
-                sanitized_obs_slices.append(obs)
+                if not torch.isfinite(obs_conv).all():
+                    obs_conv = torch.where(torch.isfinite(obs_conv), obs_conv, torch.zeros_like(obs_conv))
+                sanitized_obs_slices.append(obs_conv)
             obs_slices = sanitized_obs_slices
 
             # (1) Stage-1: grid HEAD path-integrates on the EXOGENOUS action (BAN-5 enforced inside
@@ -301,16 +304,16 @@ class CerebrumNet:
                         
                         dW = weight_update(M=M, theta=theta, Pi_post=mod.Pi[l],
                                                   eps_post=mod.eps[l], elig=self.elig[m_i][l].value,
-                                                  eta=self.cfg.eta_w / self.cfg.tau_w)
+                                                  eta=self.cfg.eta_w / max(self.cfg.tau_w, 1e-6))
                         if self.cfg.align_feedback:
                             mod.W[l] += dW - self.cfg.lam_kp * mod.W[l]
-                            mod.B[l] += feedback_update_kp(mod.B[l], M=M, Pi_post=mod.Pi[l],
+                            mod.B[l] += feedback_update_kp(mod.B[l], M=M, theta=theta, Pi_post=mod.Pi[l],
                                                            eps_post=mod.eps[l], elig=self.elig[m_i][l].value,
-                                                           eta=self.cfg.eta_w / self.cfg.tau_w,
+                                                           eta=self.cfg.eta_w / max(self.cfg.tau_w, 1e-6),
                                                            lam_kp=self.cfg.lam_kp)
                         else:
                             mod.W[l] += dW
-                            dB = (1.0 / self.cfg.tau_b) * feedback_update(mod.B[l], a_up=mod.x[l + 1],
+                            dB = (1.0 / max(self.cfg.tau_b, 1e-6)) * feedback_update(mod.B[l], a_up=mod.x[l + 1],
                                                                                  eps=mod.eps[l], cfg=self.cfg)
                             mod.B[l] += dB
                         

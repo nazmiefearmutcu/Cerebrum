@@ -21,7 +21,7 @@ class Neuromodulator:
         else:
             reward_val = float(reward)
         M = reward_val - self.r_bar
-        self.r_bar += (1.0/self.cfg.tau_r) * (reward_val - self.r_bar)  # EMA
+        self.r_bar += (1.0/max(self.cfg.tau_r, 1e-6)) * (reward_val - self.r_bar)  # EMA
         return torch.tensor(M, device=self.device, dtype=self.dtype)
 
     def temperature(self, M):
@@ -31,8 +31,10 @@ class Neuromodulator:
 
     def pi_gain(self, M):
         if isinstance(M, torch.Tensor):
-            return 1.0 / (1.0 + torch.exp(-self.a_Pi * M))
-        return 1.0 / (1.0 + np.exp(-self.a_Pi * float(M)))
+            clamped_input = torch.clamp(-self.a_Pi * M, min=-50.0, max=50.0)
+            return 1.0 / (1.0 + torch.exp(clamped_input))
+        clamped_input = np.clip(-self.a_Pi * float(M), -50.0, 50.0)
+        return 1.0 / (1.0 + np.exp(clamped_input))
 
     def eta(self, M):
         if isinstance(M, torch.Tensor):
@@ -41,5 +43,5 @@ class Neuromodulator:
 
     def t_gate(self, M, eps=1e-3):
         if isinstance(M, torch.Tensor):
-            return 1.0 / (torch.abs(M) + eps)
-        return 1.0 / (abs(float(M)) + eps)
+            return 1.0 / (torch.abs(M) + max(eps, 1e-6))
+        return 1.0 / (abs(float(M)) + max(eps, 1e-6))
