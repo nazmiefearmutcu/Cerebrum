@@ -289,3 +289,12 @@ To supplement EWC, we implemented modern replay-based methods in [benchmarks/bas
 ### 6. Multimodal Bootstrapping (VLM Adapter)
 * **Vision-Language Adaptation:** Implemented a pre-trained `VLMAdapter` in [vlm_adapter.py](file:///Users/nazmi/Cerebrum/cerebrum/grounding/vlm_adapter.py) that translates natural language text instructions and camera images into low-dimensional semantic goal vectors, bypassing tabula rasa training.
 
+### 7. Adversarial Remediation & Numerical Safeguards (Domain Reports Fixes)
+* **JIT Settling Update Logic:** Corrected JIT-traced settling logic in [pc_core.py](file:///Users/nazmi/Cerebrum/cerebrum/pc_core.py) to properly accept and integrate the feedback tensor (`fb`) before applying drift updates and clamping.
+* **ROS Node Concurrency Mutex:** Secured motor command writing and velocity readings under the node's main thread-safety lock (`self._lock`) in [ros_node.py](file:///Users/nazmi/Cerebrum/cerebrum/grounding/ros_node.py) to eliminate asynchronous race hazards.
+* **Zero-Division Safeguards:** Wrapped all time-constant updates (`tau_pi`, `tau_e`, `tau_w`, `tau_r`, `tau_c`, `tau_S`) in a safe minimum ceiling `max(tau, 1e-6)` inside [plasticity.py](file:///Users/nazmi/Cerebrum/cerebrum/plasticity.py) and [neuromod.py](file:///Users/nazmi/Cerebrum/cerebrum/neuromod.py).
+* **Exponential Overflow Protection:** Clamped all inputs to `exp()` calls inside `MetaplasticFuse` in [metaplasticity.py](file:///Users/nazmi/Cerebrum/cerebrum/metaplasticity.py) and `Neuromodulator` in [neuromod.py](file:///Users/nazmi/Cerebrum/cerebrum/neuromod.py) to `[-50.0, 50.0]` to prevent floating-point underflows or overflows.
+* **Input Sanitization & Validation:** Enforced strict list/tuple validations, slice dimensions matching `slice_dim`, and zero-sanitization of NaN/Inf sensory values in [unified.py](file:///Users/nazmi/Cerebrum/cerebrum/unified.py) before stepping the network.
+* **Clean Wrapper Comparisons:** Safely removed duplicate comparison operator overrides in `TensorSliceWrapper` in [types.py](file:///Users/nazmi/Cerebrum/cerebrum/types.py) to prevent redundant definitions.
+
+
