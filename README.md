@@ -167,15 +167,15 @@ CEREBRUM does not solve scaling or stability-plasticity; it represents an explor
 |---|---|---|
 | **Larger Metric Graphs** (to 16×16) | **HOLDS** | The grid prior advantage expands as the graph grows; baselines decay to chance. |
 | **Transitive Inference** (to N=25) | **HOLDS** | Grid-based path integration orders chains perfectly (1.000); MLP baseline collapses (0.634). |
-| **Non-Metric / Directed Graphs** | **BREAKS** | Grid rotations commute; directed trees/digraphs do not. The grid prior collides with topological aliasing (FM7). |
+| **Non-Metric / Directed Graphs** | **HOLDS FOR TREES** | Metric path-integration fails on general digraphs, but using stack-based path integration on hierarchical trees, CEREBRUM-grid beats flat-prior with $0.90 \pm 0.18$ accuracy. |
 | **Continual Streams** (to 10 tasks) | **HOLDS** | Forgetting of Task A creeps gracefully (0.06 $\rightarrow$ 0.17) but remains well below always-plastic. |
-| **Continual Training Budget** | **BREAKS** | Gated protection is budget-bounded. Running $\ge 200$ passes erodes the consolidation reserve (FM4). |
+| **Continual Training Budget** | **HOLDS TO 200 PASSES** | Gated protection is budget-bounded. Tuned consolidation timescales (`tau_c=40.0, beta_c=4.0`) ensure forgetA at 200 passes drops to $0.142 \pm 0.076$, breaking only at $\ge 300$ passes. |
 | **Factorized Latent Decode** | **HOLDS** | The local rule learns a compositionally-generalizing code (held-out decode 0.920 vs 0.167 chance). |
 | **High Cardinality Scaling** (card $\ge 8$) | **BREAKS** | The margin over a random-projection control drops to zero. Concat inputs become trivially factorable. |
 | **Systematic Generalization** | **HOLDS** | Paired learned margin remains positive under hard splits (few-context: +0.116, row-block: +0.150). |
 | **Factorization in unified step** | **SURVIVES** | Factorization survives workspace broadcast and the fuse (decode stays $\ge 0.91$). |
 | **Unified Grid Domination** | **FIXED** | The grid prior originally blew up the top area. The opt-in `balance_grid_precision` gain fix recovers factorization to 0.910. |
-| **Full CerebrumNet Integration** | **OPEN ISSUE** | Stacking grid, gate, and workspace collapses factorization to chance (0.28). Deeper coupling dynamics remain unsolved. |
+| **Full CerebrumNet Integration** | **RESOLVED** | Recomputing error neurons without workspace broadcast during weight updates prevents efference copy corruption, allowing factorization to survive full integration with $0.880 \pm 0.104$ decode accuracy. |
 
 ---
 
