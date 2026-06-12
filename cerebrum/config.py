@@ -61,7 +61,7 @@ class CerebrumConfig:
                               # a low value lets the informative scalar bid dominate (still stochastic)
     # metaplasticity (Stage 3)
     tau_S: float = 20.0       # surprise-baseline EMA timescale
-    tau_c: float = 300.0      # consolidation-reserve timescale (slow)
+    tau_c: float = 150.0      # consolidation-reserve timescale (slow)
     alpha_c: float = 1.0      # low-surprise consolidation gain (builds c)
     beta_c: float = 1.5       # high-surprise erosion gain (frees c)
     c_max: float = 1.0        # max consolidation reserve
@@ -78,4 +78,6 @@ class CerebrumConfig:
     sensor_fusion_alpha: float = 0.8 # EMA low-pass filtering coefficient (1.0 = no filtering)
     sensor_randomize: bool = False   # enable domain randomization/noise injection in sensory inputs
     sensor_noise_scale: float = 0.02 # standard deviation of Gaussian noise for sensors
+    subspace_segregation: bool = False
+    non_commutative_prior: bool = False
 

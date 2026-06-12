@@ -26,8 +26,9 @@ def test_local_learning_raises_win_prob_of_rewarded_module():
     # repeatedly: module 1 wins and is rewarded (M>0) -> its Go weight should grow
     G1_before = float(g.G[1,0].item())
     for _ in range(30):
-        g.select(np.array([0.5,1.0,0.5]), rng, T_gate=0.5)
-        g.learn(M=1.0)
+        z = g.select(np.array([0.5,1.0,0.5]), rng, T_gate=0.5)
+        reward = 1.0 if z[1, 0] > 0.5 else 0.0
+        g.learn(M=reward)
     assert float(g.G[1,0].item()) > G1_before                          # rewarded winner's Go weight increases (scalar M)
 
 def test_lam_g_decays_gate_weights_toward_init():

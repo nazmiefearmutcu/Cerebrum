@@ -127,3 +127,36 @@ Integrity mode: development
 ### System 1 Reflex Performance
 - [ ] Verification tests show that System 1 latency is at least 5x lower (fewer settling iterations/ops) than System 2 workspace routing when a hazard is detected.
 - [ ] In obstacle-avoidance simulations, the robot equipped with System 1 reflexes successfully avoids collisions that a System 2-only model fails to avoid in time due to settling delay.
+
+## Follow-up — 2026-06-12T19:36:16Z
+
+Cerebrum aktif çıkarım mimarisinin rapor edilen tüm mimari eksikliklerini (C3 kaldıraç rekabeti, metrik olmayan graflar, metaplastik sigorta kararsızlığı, yapay enerji sapması vb.) gidermek ve önerilen çözümleri (altuzay ayrıştırması, topolojiye duyarlı metrik olmayan önsel dönüşümleri, dinamik homeostatik durulma ve ROS node senkronizasyonu) implemente ederek sistemi kararlı hale getirmek.
+
+Working directory: /Users/nazmi/Cerebrum
+Integrity mode: development
+
+## Requirements
+
+### R1. Grid Önseli İçin Altuzay Ayrıştırması (Subspace Segregation)
+Kortikal modüllerin (`PCAreas`) üst katmanındaki top-down grid tahmini ile duyusal faktör kodlarının birbiriyle yarışmasını önlemek amacıyla boyutsal altuzay ayrıştırması (subspace segregation) uygulayın. Grid önsel tahminleri ve duyusal kodlar latent vektör içinde çakışmayacak şekilde izole edilmelidir.
+
+### R2. Komütatif Olmayan ve Asimetrik Yapısal Önsel (Non-Commutative/Asymmetric Prior)
+Grid hücresi modelini (`GridHead`) ya da alternatif bir önsel modülü, değişmeli (commutative) olmayan Lie-grubu dönüşümlerini (örn. $SO(3)$ veya Heisenberg grupları) destekleyecek şekilde genişletin. Bu sayede yönlü ağaçlar (directed trees), hiyerarşiler ve asimetrik ilişkiler içeren graflar (TreeRelationalGraph) üzerinde başarılı path-integration yapılabilmelidir (FM7 çözümü).
+
+### R3. Metaplastik Homeostaz ve Kararlılık (Metaplastic Homeostasis)
+Metaplastic sigorta (`MetaplasticFuse`) için konsolidasyon rezervini ($c$) uzun eğitim süreçlerinde ($\ge 200$ adım) kararlı kılan ve Langevin gürültüsünün sürpriz olarak algılanıp rezervi eritmesini önleyen dinamik bir homeostaz veya sıcaklık adaptasyonu mekanizması entegre edin (FM4 çözümü).
+
+### R4. ROS Node Senkronizasyonu ve Sistem 1-2 Geçiş Yumuşatması
+System 1 (Refleks) tetiklendiğinde System 2 (Workspace durulması) arasındaki motor komutu geçişlerini yumuşatın (sarsıntıyı engellemek için). Ayrıca, `ros_node.py` içindeki asenkron motor yazma ve hız okuma işlemlerindeki thread çekişmelerini (race hazards) tamamen engelleyin.
+
+### R5. Kolen-Pollack Eşleşme ve Gumbel-Max Kararlılığı
+Ağırlık güncelleme dinamiğinde ileri ağırlıklar $W$ ile geri besleme ağırlıkları $B$ arasındaki Kolen-Pollack (KP) güncelleme uyumsuzluklarını giderin. Modüllerin gating yarışında ("dead experts" sorunu) homeostaz parametrelerinin kararlılığını artırın.
+
+## Acceptance Criteria
+
+### Doğruluk ve Entegrasyon
+- [ ] Bütün pytest test paketi (yeni eklenecek testlerle birlikte) %100 yeşil (başarılı) olmalıdır.
+- [ ] Precision-balancing / subspace özelliği etkinleştirilmiş `full` koşulu altındaki faktörize kod deşifre doğruluğu (trained decode accuracy) >= 0.85 olmalıdır (mevcut çöküş değeri olan ~0.28'den yukarı taşınmalıdır).
+- [ ] Metrik olmayan asimetrik graflardaki (TreeRelationalGraph) few-shot tahmin başarısı, flat-prior baz hattına göre belirgin şekilde yüksek çıkmalıdır.
+- [ ] Task A görevinin unutulma oranı, Task C'nin öğrenilmesinden sonra (200+ eğitim adımı geçildiğinde dahi) 0.15'in altında tutulmalıdır.
+- [ ] ROS node telemetrisi sıfır race condition ve System 1 tetiklenmelerinde yumuşak hız komut geçişlerini doğrulamalıdır.

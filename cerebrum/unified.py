@@ -296,6 +296,8 @@ class CerebrumNet:
             
             with torch.no_grad():
                 for m_i, mod in enumerate(self.modules):
+                    # Recompute errors without workspace broadcast to prevent efference copy corruption
+                    mod.compute_errors(top_pred=top_pred, broadcast=None)
                     for l in range(mod.L - 1):
                         theta = self.fuse[m_i][l].update(mod.Pi[l], mod.eps[l], self.elig[m_i][l].value)
                         if self._force_theta is not None:

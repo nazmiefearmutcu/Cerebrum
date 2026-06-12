@@ -70,7 +70,9 @@ class BasalGangliaGate:
             gumbel_noise = rng.gumbel((self.M_,))
             logits = u / max(T_val, 1e-6) + gumbel_noise
             
-            ex = torch.exp(logits - logits.max())
+            # Analytical probability under policy (un-noised utility / T)
+            u_scaled = u / max(T_val, 1e-6)
+            ex = torch.exp(u_scaled - u_scaled.max())
             P[:, j] = ex / ex.sum()
             z[torch.argmax(logits).item(), j] = 1.0
             
@@ -109,3 +111,5 @@ class BasalGangliaGate:
             
         with torch.no_grad():
             self.theta += gamma_up * (1.0 - wins) - gamma_dn * wins * hog
+            # Clamp excitability values to [-2.0, 2.0] range to prevent runaway growth
+            self.theta = torch.clamp(self.theta, min=-2.0, max=2.0)

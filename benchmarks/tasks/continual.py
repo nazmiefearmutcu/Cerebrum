@@ -21,7 +21,7 @@ TAU_R = 1e9
 # Metaplasticity knobs tuned so A consolidates (cbar high) during its passes BEFORE B/C
 # arrive, while B/C are still surprising enough to re-erode c and reopen theta (no
 # plastic-death). NEVER a Fisher pass / anchor / task-boundary — pure local surprise.
-TAU_C = 80.0
+TAU_C = 40.0
 ALPHA_C = 1.0
 BETA_C = 4.0
 G_THETA = 3.5

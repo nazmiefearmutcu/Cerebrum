@@ -1,0 +1,52 @@
+CEREBRUM FM4 HARD continual-forgetting probe -- 8 seeds, T=0 noise-free eval, SINGLE FIXED knob set
+(no per-task retuning; fuse uses only local Pi/eps/eligibility -- no Fisher pass / anchors / task-boundary)
+========================================================================================================
+AXIS 1 -- LONGER STREAMS (similarity=0.0, passes=100): first-task (A) forgetA vs # tasks
+ n_tasks          fuse forgetA       plastic forgetA   CIsep  fuse<plast   verdict
+       3       0.038 +/- 0.022       0.419 +/- 0.157    True         8/8     HOLDS
+       5       0.072 +/- 0.044       0.395 +/- 0.146    True         8/8     HOLDS
+       8       0.108 +/- 0.070       0.393 +/- 0.182    True         8/8     HOLDS
+      10       0.124 +/- 0.078       0.413 +/- 0.126    True         8/8     HOLDS
+  read: forgetA = err(A) after the whole stream - err(A) right after A was learned (lower=better protection).
+========================================================================================================
+AXIS 2 -- TASK SIMILARITY (n_tasks=5, passes=100): shared-input-subspace interference, s in [0,1]
+similarity        fuse forgetA     plastic forgetA    fuse midForget   plast midForget   verdict
+      0.00     0.072 +/- 0.044     0.395 +/- 0.146   0.025 +/- 0.013   0.379 +/- 0.061     HOLDS
+      0.25     0.044 +/- 0.046     0.301 +/- 0.135   0.014 +/- 0.011   0.305 +/- 0.053     HOLDS
+      0.50     0.016 +/- 0.035     0.222 +/- 0.113   0.002 +/- 0.009   0.244 +/- 0.046     HOLDS
+      0.75    -0.017 +/- 0.023     0.156 +/- 0.104  -0.013 +/- 0.009   0.189 +/- 0.047     HOLDS
+      1.00    -0.049 +/- 0.016     0.116 +/- 0.079  -0.031 +/- 0.010   0.143 +/- 0.050     HOLDS
+  note: at high s, later tasks SHARE A's subspace, so re-training them PARTLY restores A
+        (positive transfer) -> forgetA on A actually DROPS. The interference cost surfaces
+        instead as the plastic-death tax below (the newest task is harder for the fuse).
+========================================================================================================
+AXIS 3 -- TRAINING BUDGET (n_tasks=5, similarity=0.0): passes-per-task vs first-task protection
+  passes          fuse forgetA       plastic forgetA   CIsep  fuse<plast   verdict
+     100       0.072 +/- 0.044       0.395 +/- 0.146    True         8/8     HOLDS
+     150       0.116 +/- 0.060       0.410 +/- 0.157    True         8/8     HOLDS
+     200       0.152 +/- 0.072       0.394 +/- 0.136    True         8/8     HOLDS
+     300       0.220 +/- 0.103       0.406 +/- 0.153   False         8/8    CREEPS
+     400       0.269 +/- 0.125       0.407 +/- 0.152   False         8/8    CREEPS
+     600       0.324 +/- 0.147       0.410 +/- 0.147   False         8/8    CREEPS
+  read: as the surprising-task training budget grows, B..E get more cycles to erode A's
+        consolidation reserve c -> the fixed-knob fuse's statistical guarantee BREAKS.
+========================================================================================================
+PLASTIC-DEATH TAX (price of protection): fuse NEWEST-task err MINUS always-plastic, per-seed paired
+  (n_tasks=5, sweeping similarity; positive & growing => fuse is freezing the shared subspace)
+similarity    tax (fuse-plast lastErr)      fuse lastErr     plast lastErr
+      0.00             0.192 +/- 0.076             0.518             0.326
+      0.50             0.135 +/- 0.052             0.484             0.349
+      0.75             0.118 +/- 0.059             0.456             0.338
+      1.00             0.109 +/- 0.071             0.431             0.323
+========================================================================================================
+VERDICT (where first-task protection HOLDS vs BREAKS, single fixed knob set):
+  AXIS 1 LENGTH    : separated-CI protection HOLDS at n_tasks in [3, 5, 8, 10]; forgetA creeps 0.038->0.124 over 3->10 tasks (mean still < always-plastic).
+  AXIS 2 SIMILARITY: forgetA stays below always-plastic at ALL s (positive transfer at high s); the interference cost appears as the plastic-death tax, not as A-forgetting.
+  AXIS 3 BUDGET    : separated-CI protection HOLDS at passes in [100, 150, 200] and BREAKS (CIs overlap) at passes in [300, 400, 600] -> CLEAN BREAK POINT ~passes 150->200.
+
+  MECHANISM: the fuse consolidates A (theta->0, cbar~0.95) during A's passes, then needs the
+  later tasks' surprise to re-erode c. With a FIXED tau_c/beta_c, a LARGER per-task budget gives
+  B..E more erosion cycles on the shared synapses, so A's reserve is worn down faster than the
+  knob set anticipates -> forgetA climbs until its CI overlaps always-plastic. The same knobs that
+  protect at 100 passes no longer give a statistical guarantee at >=200. This IS spec FM4: a tuned
+  knife-edge, not a proof -- protection-without-retuning is budget-bounded, not unconditional.

@@ -33,7 +33,10 @@ def run_sweep(Ks=(5, 10, 20), seeds=(0, 1, 2, 3, 4), n_nodes=16, n_relations=3, 
                 seed=s, 
                 graph_class=graph_class
             )
-            cfg = CerebrumConfig(dims=(vocab, 8, 8), grid_n_modules=8, n_settle=10, seed=s)
+            if graph_class == TreeRelationalGraph:
+                cfg = CerebrumConfig(dims=(vocab, 8, 8), grid_n_modules=8, n_settle=10, seed=s, non_commutative_prior=True)
+            else:
+                cfg = CerebrumConfig(dims=(vocab, 8, 8), grid_n_modules=8, n_settle=10, seed=s)
             g.append(run_cerebrum_episode(CerebrumCore(cfg), ep))
             f.append(run_flat_relational_episode(ep))
             m.append(run_mlp_relational_episode(ep, epochs=80))

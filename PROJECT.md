@@ -1,38 +1,30 @@
-# Project: Cerebrum Household Active Inference Agent
+# Project: Cerebrum Architectural Remediation
 
 ## Architecture
-- **Environment** (`benchmarks/tasks/household.py`):
-  - A graph or grid-world of connected rooms (e.g., Living Room, Kitchen, Bedroom, Bathroom, Study).
-  - Pre-processed object identifiers (e.g., cup, book, trash) and drop-off zones (table, shelf, bin).
-  - Multi-stage sequence: Navigation (room layout mapping), Object Identification, Fetch/Manipulate, Sorting/Cleaning.
-- **Cerebrum Agent**:
-  - Closed-loop active inference controller using `CerebrumNet`.
-  - Sensory vectors: low-dimensional concatenation/mapping of object and room identifiers.
-  - Active Inference action selection: evaluate potential actions, project next states, minimize predictive error and free energy $F$.
-  - Grid prior path integration driven by motor efference copy.
-- **Neuromorphic Metrics**:
-  - Average activation sparsity $\rho \ge 80\%$ (active fraction $\le 20\%$) in PC areas.
-  - Synaptic operations per decision logged.
-  - Learn-time global communication restricted to scalar neuromodulator $M$.
+- **Pillar 1 PC substrate:** error neurons $\epsilon_l = x_l - \hat{y}_l$ with PyTorch device-agnostic backend.
+- **Pillar 2 local plasticity:** four-factor Hebbian with Kolen-Pollack alignment between $W$ and $B$.
+- **Pillar 3 structured prior:** extended `GridHead` with support for non-commutative Lie group transformations (SO(3)/Heisenberg) for relational graphs (directed trees/hierarchies).
+- **Pillar 4 stochastic inference:** Langevin noise settling with dynamic temperature / homeostasis under `MetaplasticFuse`.
+- **Pillar 5 neuromorphic:** System 1 (reflex) bypass and System 2 (workspace settling) smooth transition; synchronized ROS node thread-safety.
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | M1: Household Environment | Implement simulated household room graph, objects, and drop-off logic | None | PLANNED |
-| 2 | M2: Active Inference Agent | Implement Cerebrum controller with action selection via free energy minimization | 1 | PLANNED |
-| 3 | M3: Benchmarks & Metrics | Implement benchmarks/run_household.py, collect metrics (sparsity, ops, scalar-M) | 2 | PLANNED |
-| 4 | M4: E2E Verification | Run full suite over 5 seeds, ensure success rate >= 80%, sparsity >= 80%, and run audit | 3 | PLANNED |
+| 1 | M1: Subspace Segregation | Implement subspace segregation in `PCAreas` and `unified.py` | None | PLANNED |
+| 2 | M2: Non-Commutative Prior | Support non-commutative Lie group rotations in `GridHead` for `TreeRelationalGraph` | None | PLANNED |
+| 3 | M3: Metaplastic Homeostasis | Implement dynamic homeostasis and temperature adaptation in `MetaplasticFuse` | None | PLANNED |
+| 4 | M4: System Coordination & KP | Smooth System 1-2 transitions, fix ROS thread safety, implement Kolen-Pollack and Gumbel-Max stability | None | PLANNED |
+| 5 | M5: Verification & Bundle | Rebuild `cerebrum_submission.py`, run pytest suite, verify final forensic audit | M1, M2, M3, M4 | PLANNED |
 
 ## Interface Contracts
-- **Environment API**:
-  - `env.reset(seed)`: Returns initial observation vector (room and object identifiers).
-  - `env.step(action)`: Accepts action, returns `(obs, reward, done, info)`.
-- **Agent API**:
-  - `agent.select_action(obs)`: Selects action minimizing free energy.
-  - `agent.update(obs, action, reward)`: Updates internal PC states, grid head, and plasticity weights.
+- **GridHead**:
+  - `GridHead.step(motor_action)`: updates Lie group rotations.
+- **MetaplasticFuse**:
+  - `MetaplasticFuse.step(pi, eps, eligibility)`: local metaplastic update with homeostasis.
+- **ROSNode**:
+  - Expose safe thread-safe motor writing and speed reading.
 
 ## Code Layout
 - `cerebrum/`: Core source files of the CerebrumNet model.
-- `benchmarks/tasks/household.py`: Simulated environment.
-- `benchmarks/run_household.py`: Benchmark script.
-- `tests/test_household.py`: Unit and integration tests.
+- `cerebrum_submission.py`: Bundled single-file submission.
+- `tests/`: Test suite files.

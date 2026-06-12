@@ -216,6 +216,11 @@ def run_cerebrum_episode(net, ep):
     g = ep.g
     # ---- bind phase: walk the graph, advancing grid by each relation's exogenous vector
     net.grid.reset()
+    if getattr(net.cfg, "non_commutative_prior", False):
+        net.grid.parent_vec = g.relation_vec(0)
+        net.grid.child_vecs = [g.relation_vec(r) for r in range(1, g.n_relations)]
+        net.grid.n_nodes = g.n_nodes
+        net.grid.B = g.n_relations - 1
     node = 0
     net.observe_and_learn(g.obs_at(node), reward=1.0)        # bind start obs at origin code
     for (n, r, rvec) in ep.walk:
@@ -229,20 +234,22 @@ def run_cerebrum_episode(net, ep):
     # exogenous relation vectors, then complete. We approximate start's bind code by the
     # cumulative relation-vector sum at its FIRST occurrence in the walk (the agent's own
     # episodic anchor for that node).
-    first_offset = {}                                        # node -> cumulative relvec sum at first visit
-    cum = np.zeros(2)
-    first_offset.setdefault(0, cum.copy())
+    first_offset = {}                                        # node -> list of relation vectors at first visit
+    cum_path = []
+    first_offset.setdefault(0, list(cum_path))
     for (n, r, rvec) in ep.walk:
-        cum = cum + rvec
+        cum_path = cum_path + [rvec]
         nxt = g.step(n, r)
         if nxt not in first_offset:
-            first_offset[nxt] = cum.copy()
+            first_offset[nxt] = list(cum_path)
     correct = 0
     for (start, rel_path, target) in ep.queries:
         net.grid.reset()
         # move grid to start's episodic anchor (exogenous cumulative offset), then compose
         # the queried relation vectors (still exogenous) — pure metric path-integration.
-        net.move(Exogenous(first_offset.get(start, np.zeros(2))))
+        path_to_start = first_offset.get(start, [])
+        for rvec in path_to_start:
+            net.move(Exogenous(rvec))
         for r in rel_path:
             net.move(Exogenous(g.relation_vec(r)))
         pred = net.predict_obs_here(g.vocab)

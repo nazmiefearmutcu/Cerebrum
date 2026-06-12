@@ -129,6 +129,12 @@ class PCAreas:
         if top_pred is None:
             return torch.zeros_like(self.x[l])
         top_pred_t = to_tensor(top_pred, self.device, self.dtype)
+        if getattr(self.cfg, "subspace_segregation", False):
+            half = top_pred_t.shape[0] // 2
+            # Mask out sensory subspace (first half), only predict grid subspace (second half)
+            seg_pred = torch.zeros_like(top_pred_t)
+            seg_pred[half:] = top_pred_t[half:]
+            return self._balanced_top_pred(seg_pred)
         return self._balanced_top_pred(top_pred_t)
 
     def compute_errors(self, top_pred=None, broadcast=None):
@@ -178,6 +184,11 @@ class PCAreas:
                 
                 fprime = g_deriv(W_prev_raw @ x_curr_raw)
                 fb = B_prev_raw @ (fprime * (Pi_prev_raw * eps_prev_raw))
+                if l == self.L - 1 and getattr(self.cfg, "subspace_segregation", False):
+                    # Mask out bottom-up feedback in the grid subspace (second half)
+                    half = fb.shape[0] // 2
+                    fb = fb.clone()
+                    fb[half:] = 0.0
             else:
                 fb = torch.zeros_like(x_l_raw)
                 

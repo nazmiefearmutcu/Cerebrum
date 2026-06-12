@@ -71,7 +71,7 @@ class CerebrumConfig:
                               # a low value lets the informative scalar bid dominate (still stochastic)
     # metaplasticity (Stage 3)
     tau_S: float = 20.0       # surprise-baseline EMA timescale
-    tau_c: float = 300.0      # consolidation-reserve timescale (slow)
+    tau_c: float = 150.0      # consolidation-reserve timescale (slow)
     alpha_c: float = 1.0      # low-surprise consolidation gain (builds c)
     beta_c: float = 1.5       # high-surprise erosion gain (frees c)
     c_max: float = 1.0        # max consolidation reserve
@@ -88,6 +88,8 @@ class CerebrumConfig:
     sensor_fusion_alpha: float = 0.8 # EMA low-pass filtering coefficient (1.0 = no filtering)
     sensor_randomize: bool = False   # enable domain randomization/noise injection in sensory inputs
     sensor_noise_scale: float = 0.02 # standard deviation of Gaussian noise for sensors
+    subspace_segregation: bool = False
+    non_commutative_prior: bool = False
 
 
 
@@ -768,6 +770,12 @@ class PCAreas:
         if top_pred is None:
             return torch.zeros_like(self.x[l])
         top_pred_t = to_tensor(top_pred, self.device, self.dtype)
+        if getattr(self.cfg, "subspace_segregation", False):
+            half = top_pred_t.shape[0] // 2
+            # Mask out sensory subspace (first half), only predict grid subspace (second half)
+            seg_pred = torch.zeros_like(top_pred_t)
+            seg_pred[half:] = top_pred_t[half:]
+            return self._balanced_top_pred(seg_pred)
         return self._balanced_top_pred(top_pred_t)
 
     def compute_errors(self, top_pred=None, broadcast=None):
@@ -817,6 +825,11 @@ class PCAreas:
                 
                 fprime = g_deriv(W_prev_raw @ x_curr_raw)
                 fb = B_prev_raw @ (fprime * (Pi_prev_raw * eps_prev_raw))
+                if l == self.L - 1 and getattr(self.cfg, "subspace_segregation", False):
+                    # Mask out bottom-up feedback in the grid subspace (second half)
+                    half = fb.shape[0] // 2
+                    fb = fb.clone()
+                    fb[half:] = 0.0
             else:
                 fb = torch.zeros_like(x_l_raw)
                 
@@ -892,6 +905,13 @@ class GridHead:
         
         self.k = torch.tensor(k_np, device=device, dtype=dtype)
         self._pos = torch.zeros(2, device=device, dtype=dtype)
+        if getattr(cfg, "non_commutative_prior", False):
+            self.R = torch.eye(3, device=device, dtype=dtype).unsqueeze(0).repeat(M, 1, 1)
+        self.parent_vec = None
+        self.child_vecs = None
+        self.n_nodes = None
+        self.B = None
+        self.tree_stack = []
         self.store = None
         self.obs_dim = None
 
@@ -909,23 +929,113 @@ class GridHead:
             self.dtype = dtype
         self.k = safe_to(self.k, device, self.dtype)
         self._pos = safe_to(self._pos, device, self.dtype)
+        if hasattr(self, 'R'):
+            self.R = safe_to(self.R, device, self.dtype)
         if self.store is not None:
             self.store = safe_to(self.store, device, self.dtype)
         return self
 
     def reset(self):
-        self._pos = torch.zeros(2, device=self.device, dtype=self.dtype)
+        if getattr(self.cfg, "non_commutative_prior", False):
+            self.R = torch.eye(3, device=self.device, dtype=self.dtype).unsqueeze(0).repeat(self.cfg.grid_n_modules, 1, 1)
+            self.tree_stack = []
+        else:
+            self._pos = torch.zeros(2, device=self.device, dtype=self.dtype)
 
     def transition(self, action):
         assert_exogenous_action(action)
         val = to_tensor(action.value, self.device, self.dtype)
-        self._pos = self._pos + val
+        if getattr(self.cfg, "non_commutative_prior", False):
+            if self.parent_vec is not None and self.child_vecs is not None and self.n_nodes is not None and self.B is not None:
+                # Stack-based path integration on non-metric tree graph
+                val_np = val.detach().cpu().numpy() if hasattr(val, "detach") else np.asarray(val)
+                def to_np(x):
+                    if hasattr(x, "detach"):
+                        return x.detach().cpu().numpy()
+                    return np.asarray(x)
+                
+                # Calculate current node index from stack
+                curr_node = 0
+                for c in self.tree_stack:
+                    curr_node = curr_node * self.B + c
+                
+                parent_np = to_np(self.parent_vec)
+                if np.allclose(val_np, parent_np, atol=1e-5):
+                    if len(self.tree_stack) > 0:
+                        self.tree_stack.pop()
+                else:
+                    matched = False
+                    for idx, child_vec in enumerate(self.child_vecs):
+                        child_np = to_np(child_vec)
+                        if np.allclose(val_np, child_np, atol=1e-5):
+                            c = idx + 1
+                            next_node = curr_node * self.B + c
+                            if next_node < self.n_nodes:
+                                self.tree_stack.append(c)
+                            matched = True
+                            break
+                    if not matched:
+                        next_node = curr_node * self.B + 1
+                        if next_node < self.n_nodes:
+                            self.tree_stack.append(1)
+
+            theta_x = self.k[:, 0] * val[0]
+            theta_y = self.k[:, 1] * val[1]
+            
+            cos_x = torch.cos(theta_x)
+            sin_x = torch.sin(theta_x)
+            cos_y = torch.cos(theta_y)
+            sin_y = torch.sin(theta_y)
+            
+            Rx = torch.zeros((self.cfg.grid_n_modules, 3, 3), device=self.device, dtype=self.dtype)
+            Rx[:, 0, 0] = 1.0
+            Rx[:, 1, 1] = cos_x
+            Rx[:, 1, 2] = -sin_x
+            Rx[:, 2, 1] = sin_x
+            Rx[:, 2, 2] = cos_x
+            
+            Ry = torch.zeros((self.cfg.grid_n_modules, 3, 3), device=self.device, dtype=self.dtype)
+            Ry[:, 0, 0] = cos_y
+            Ry[:, 0, 2] = sin_y
+            Ry[:, 1, 1] = 1.0
+            Ry[:, 2, 0] = -sin_y
+            Ry[:, 2, 2] = cos_y
+            
+            R_action = Rx @ Ry
+            self.R = self.R @ R_action
+            
+            with torch.no_grad():
+                U, S, Vh = torch.linalg.svd(self.R)
+                self.R = U @ Vh
+        else:
+            self._pos = self._pos + val
 
     def encode(self):
-        phase = self.k @ self.pos                            # (M,)
-        cos_phase = torch.cos(phase)
-        sin_phase = torch.sin(phase)
-        return torch.stack([cos_phase, sin_phase], dim=1).reshape(-1)
+        if getattr(self.cfg, "non_commutative_prior", False):
+            if self.parent_vec is not None and self.child_vecs is not None:
+                # Stack-based path integration mapping to a unique coordinate on tree graph
+                B = len(self.child_vecs)
+                pos = torch.zeros(2, device=self.device, dtype=self.dtype)
+                for depth, child_idx in enumerate(self.tree_stack):
+                    angle = 2.0 * np.pi * (child_idx - 1) / max(B, 1)
+                    dir_vec = torch.tensor([np.cos(angle), np.sin(angle)], device=self.device, dtype=self.dtype)
+                    pos = pos + dir_vec * (0.5 ** (depth + 1))
+                phase = self.k @ (pos * 100.0)
+                cos_phase = torch.cos(phase)
+                sin_phase = torch.sin(phase)
+                return torch.stack([cos_phase, sin_phase], dim=1).reshape(-1)
+            else:
+                # Use first two columns of R (6 independent values per module)
+                # This captures the full SO(3) state more faithfully than 2 values
+                col0 = self.R[:, :, 0]  # (M, 3)
+                col1 = self.R[:, :, 1]  # (M, 3)
+                vec = torch.cat([col0, col1], dim=1)  # (M, 6)
+                return vec.reshape(-1)
+        else:
+            phase = self.k @ self.pos                            # (M,)
+            cos_phase = torch.cos(phase)
+            sin_phase = torch.sin(phase)
+            return torch.stack([cos_phase, sin_phase], dim=1).reshape(-1)
 
     def _ensure_store(self, obs_dim):
         if self.store is None:
@@ -1023,7 +1133,9 @@ class BasalGangliaGate:
             gumbel_noise = rng.gumbel((self.M_,))
             logits = u / max(T_val, 1e-6) + gumbel_noise
             
-            ex = torch.exp(logits - logits.max())
+            # Analytical probability under policy (un-noised utility / T)
+            u_scaled = u / max(T_val, 1e-6)
+            ex = torch.exp(u_scaled - u_scaled.max())
             P[:, j] = ex / ex.sum()
             z[torch.argmax(logits).item(), j] = 1.0
             
@@ -1062,6 +1174,8 @@ class BasalGangliaGate:
             
         with torch.no_grad():
             self.theta += gamma_up * (1.0 - wins) - gamma_dn * wins * hog
+            # Clamp excitability values to [-2.0, 2.0] range to prevent runaway growth
+            self.theta = torch.clamp(self.theta, min=-2.0, max=2.0)
 
 
 # ==========================================
@@ -1168,6 +1282,7 @@ class MetaplasticFuse:
         self.dtype = dtype
         self.c = torch.zeros(shape, device=device, dtype=dtype)            # consolidation reserve in [0, c_max]
         self.S_bar = torch.zeros(shape, device=device, dtype=dtype)        # per-synapse surprise baseline (EMA)
+        self.S_dev = torch.zeros(shape, device=device, dtype=dtype)        # per-synapse surprise deviation (EMA)
 
     def to(self, device, dtype=None):
         self.device = device
@@ -1175,6 +1290,7 @@ class MetaplasticFuse:
             self.dtype = dtype
         self.c = safe_to(self.c, device, self.dtype)
         self.S_bar = safe_to(self.S_bar, device, self.dtype)
+        self.S_dev = safe_to(self.S_dev, device, self.dtype)
         return self
 
     def _raw_surprise(self, Pi_post, eps_post, elig):
@@ -1186,14 +1302,22 @@ class MetaplasticFuse:
 
     def update(self, Pi_post, eps_post, elig):
         S_raw = self._raw_surprise(Pi_post, eps_post, elig)
-        S = S_raw - self.S_bar                       # surprise relative to the (pre-update) baseline
-        predictive = (S_raw <= self.S_bar).to(self.dtype)            # [S]_- regime indicator: build c
-        surprising = torch.clamp(S, min=0.0)                             # [S]_+ magnitude: erode c
         
         with torch.no_grad():
+            diff = S_raw - self.S_bar
+            
+            # S_margin filters out Langevin noise fluctuations (approx 2.0 standard deviations)
+            S_margin = 2.0 * self.S_dev
+            S = diff - S_margin
+            
+            predictive = (S_raw <= self.S_bar + S_margin).to(self.dtype)     # [S]_- regime indicator: build c
+            surprising = torch.clamp(S, min=0.0)                             # [S]_+ magnitude: erode c
+            
             dc = self.cfg.alpha_c*predictive*(self.cfg.c_max - self.c) - self.cfg.beta_c*surprising*self.c
             self.c = torch.clamp(self.c + (1.0/max(self.cfg.tau_c, 1e-6))*dc, 0.0, self.cfg.c_max)
-            self.S_bar += (1.0/max(self.cfg.tau_S, 1e-6)) * (S_raw - self.S_bar)   # baseline EMA (after it is used)
+            self.S_dev += (1.0 / max(self.cfg.tau_S, 1e-6)) * (torch.abs(diff) - self.S_dev)
+            self.S_bar += (1.0/max(self.cfg.tau_S, 1e-6)) * (diff)             # baseline EMA (after it is used)
+            
             exponent = -self.cfg.g_theta * (S - self.c)
             exponent = torch.clamp(exponent, min=-50.0, max=50.0)
             theta = 1.0 / (1.0 + torch.exp(exponent))  # sigma(g(S - c))
@@ -1693,6 +1817,8 @@ class CerebrumNet:
             
             with torch.no_grad():
                 for m_i, mod in enumerate(self.modules):
+                    # Recompute errors without workspace broadcast to prevent efference copy corruption
+                    mod.compute_errors(top_pred=top_pred, broadcast=None)
                     for l in range(mod.L - 1):
                         theta = self.fuse[m_i][l].update(mod.Pi[l], mod.eps[l], self.elig[m_i][l].value)
                         if self._force_theta is not None:
@@ -2582,14 +2708,16 @@ class CerebrumROSNode(NodeClass):
             except (TypeError, ValueError) as e:
                 self.get_logger().error(f"Error processing reward message: {e}")
             
-    def _run_system2_async(self, obs_slices):
+    def _run_system2_async(self, obs_slices, reward):
         import threading
         try:
             action = Exogenous(np.zeros(2))
+            # Run the heavy net.step outside of self._lock (using internal net RLock)
+            z, M_val = self.net.step(obs_slices, action, reward=reward)
+            action_vector = z[:, 0] if z.ndim > 1 else z
+            vels = self.motor_processor.process(action_vector)
+            
             with self._lock:
-                z, M_val = self.net.step(obs_slices, action, reward=self.reward)
-                action_vector = z[:, 0] if z.ndim > 1 else z
-                vels = self.motor_processor.process(action_vector)
                 self.last_vels = vels
             
             # Publish telemetry
@@ -2659,6 +2787,9 @@ class CerebrumROSNode(NodeClass):
                 
             if bypass_active and action_u is not None:
                 # System 1: Low-latency reflex bypass executed instantly in the callback thread
+                with self._lock:
+                    self.last_vels = action_u
+                
                 cmd_msg = Float64MultiArrayClass()
                 cmd_msg.data = action_u.tolist()
                 self.motor_pub.publish(cmd_msg)
@@ -2687,7 +2818,9 @@ class CerebrumROSNode(NodeClass):
                         start_thread = True
                 
                 if start_thread:
-                    t = threading.Thread(target=self._run_system2_async, args=(obs_slices,))
+                    with self._lock:
+                        current_reward = self.reward
+                    t = threading.Thread(target=self._run_system2_async, args=(obs_slices, current_reward))
                     t.daemon = True
                     t.start()
                 

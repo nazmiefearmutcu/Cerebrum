@@ -97,7 +97,7 @@ def _maybe_balance(cfg):
     """Apply the opt-in grid-precision-balancing flag to a cfg iff the env toggle is set."""
     if not _BALANCE:
         return cfg
-    return replace(cfg, balance_grid_precision=True)
+    return replace(cfg, balance_grid_precision=True, subspace_segregation=True)
 
 
 # ------------------------------------------------------------------------------------------
@@ -222,7 +222,8 @@ def train_pipeline_module(task, cfg, pcfg, passes, eta_w_scale=0.6, tau_w=1.0):
             if pcfg.use_broadcast:
                 z = np.array([[1.0]])                  # single module -> trivially one-hot winner
                 pcfg._wksp.write(z, net.x[-1][None, :])
-            # ---- LOCAL four-factor weight update (identical to _train_pc), optionally fuse-gated --
+            # ---- LOCAL four-factor weight update (identical to _train_pc), recomputing errors without broadcast --
+            net.compute_errors(top_pred=top_pred, broadcast=None)
             M = nm.update(reward=1.0)
             for l in range(net.L - 1):
                 theta = (fuse[l].update(net.Pi[l], net.eps[l], elig[l].value)

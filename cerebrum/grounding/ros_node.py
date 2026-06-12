@@ -185,14 +185,16 @@ class CerebrumROSNode(NodeClass):
             except (TypeError, ValueError) as e:
                 self.get_logger().error(f"Error processing reward message: {e}")
             
-    def _run_system2_async(self, obs_slices):
+    def _run_system2_async(self, obs_slices, reward):
         import threading
         try:
             action = Exogenous(np.zeros(2))
+            # Run the heavy net.step outside of self._lock (using internal net RLock)
+            z, M_val = self.net.step(obs_slices, action, reward=reward)
+            action_vector = z[:, 0] if z.ndim > 1 else z
+            vels = self.motor_processor.process(action_vector)
+            
             with self._lock:
-                z, M_val = self.net.step(obs_slices, action, reward=self.reward)
-                action_vector = z[:, 0] if z.ndim > 1 else z
-                vels = self.motor_processor.process(action_vector)
                 self.last_vels = vels
             
             # Publish telemetry
@@ -262,6 +264,9 @@ class CerebrumROSNode(NodeClass):
                 
             if bypass_active and action_u is not None:
                 # System 1: Low-latency reflex bypass executed instantly in the callback thread
+                with self._lock:
+                    self.last_vels = action_u
+                
                 cmd_msg = Float64MultiArrayClass()
                 cmd_msg.data = action_u.tolist()
                 self.motor_pub.publish(cmd_msg)
@@ -290,7 +295,9 @@ class CerebrumROSNode(NodeClass):
                         start_thread = True
                 
                 if start_thread:
-                    t = threading.Thread(target=self._run_system2_async, args=(obs_slices,))
+                    with self._lock:
+                        current_reward = self.reward
+                    t = threading.Thread(target=self._run_system2_async, args=(obs_slices, current_reward))
                     t.daemon = True
                     t.start()
                 
