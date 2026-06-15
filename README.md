@@ -305,7 +305,7 @@ To supplement EWC, we implemented modern replay-based methods in [benchmarks/bas
 
 ### Final Exam Scores:
 *   🏆 **Cerebrum-Mind:** 100/100 (🟢 **PASSED**)
-*   ❌ **Transformer Baseline:** 34/100 
+*   ❌ **Transformer Baseline:** 27/100 
 
 ![Benchmark Results](benchmark_results.png)
 

@@ -123,21 +123,84 @@ def update_readme():
             f.write(markdown_content)
         print("[SUCCESS] README.md updated dynamically (appended new results).")
 
+def get_git_executable():
+    # Try the default git
+    try:
+        res = subprocess.run(["git", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode == 0 and "version" in res.stdout:
+            return "git"
+    except Exception:
+        pass
+    
+    # Try alternative CommandLineTools path
+    clt_git = "/Library/Developer/CommandLineTools/usr/bin/git"
+    if os.path.exists(clt_git):
+        try:
+            res = subprocess.run([clt_git, "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if res.returncode == 0 and "version" in res.stdout:
+                return clt_git
+        except Exception:
+            pass
+            
+    return "git" # Fallback to default git
+
 def push_to_github():
     print("[INFO] Initiating GitHub CI/CD sync...")
-    commands = [
-        ["git", "add", "CEREBRUM_VAL_ACTION_PLAN.md", "benchmark_results.png", "README.md", "finalize_validation.py"],
-        ["git", "commit", "-m", f"test(validation): automated cross-architecture benchmark run - Cerebrum Score: {cerebrum_total}/100"],
-        ["git", "push", "origin", "main"]
+    
+    # List of files we want to stage and commit to satisfy Milestone 4
+    files_to_add = [
+        "CEREBRUM_VAL_ACTION_PLAN.md", 
+        "benchmark_results.png", 
+        "README.md", 
+        "finalize_validation.py",
+        "tests/test_stress.py",
+        "tests/test_run_validation_sim.py",
+        "tests/test_challenger_stress.py",
+        "run_validation_sim.py",
+        "sim_metrics_cerebrum.json",
+        "sim_metrics_transformer_rt2.json"
     ]
     
-    for cmd in commands:
+    # Filter for files that exist on the filesystem to avoid git pathspec errors
+    existing_files = [f for f in files_to_add if os.path.exists(f)]
+    
+    if not existing_files:
+        print("[WARNING] No files found to stage for git.")
+        return
+
+    git_exe = get_git_executable()
+    print(f"[INFO] Using git executable: {git_exe}")
+
+    try:
+        # 1. Stage the files
+        print(f"[INFO] Staging files: {existing_files}")
+        subprocess.run([git_exe, "add"] + existing_files, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        
+        # 2. Check if there are staged changes to commit
+        diff_res = subprocess.run([git_exe, "diff", "--cached", "--quiet"])
+        if diff_res.returncode == 0:
+            print("[INFO] No staged changes to commit (working tree clean).")
+        else:
+            # 3. Commit the changes
+            commit_cmd = [git_exe, "commit", "-m", f"test(validation): automated cross-architecture benchmark run - Cerebrum Score: {cerebrum_total}/100"]
+            subprocess.run(commit_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print("[SUCCESS] Changes committed locally successfully.")
+            
+        # 4. Push to remote repository (might fail/timeout in CODE_ONLY environments)
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print("[INFO] Attempting to push changes to origin main...")
+            subprocess.run([git_exe, "push", "origin", "main"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print("[SUCCESS] Automated push to GitHub repository completed.")
         except subprocess.CalledProcessError as e:
-            print(f"[ERROR] Git command failed: {' '.join(cmd)}\n{e.stderr.decode()}")
-            return
-    print("[SUCCESS] Automated push to GitHub repository completed.")
+            # Under CODE_ONLY sandbox, this is expected to fail due to network restrictions.
+            print(f"[WARNING] Git push failed (expected in network-isolated CODE_ONLY environments):\n{e.stderr.decode().strip()}")
+            
+    except FileNotFoundError:
+        print("[WARNING] Git executable not found in this environment. Skipping git sync.")
+    except subprocess.CalledProcessError as e:
+        print(f"[ERROR] Git command failed: {e.cmd}\n{e.stderr.decode().strip()}")
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during Git synchronization: {e}")
 
 if __name__ == '__main__':
     print("--- Starting Validation Finalization Pipeline ---")
