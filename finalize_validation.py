@@ -1,5 +1,6 @@
 import os
 import subprocess
+import json
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -110,12 +111,17 @@ def update_readme():
     with open('README.md', 'r', encoding='utf-8') as f:
         content = f.read()
         
-    if "## 🔬 Scientific Validation & Benchmark Results" not in content:
+    if "## 🔬 Scientific Validation & Benchmark Results" in content:
+        # Split on the section header and keep everything before it, then append new content
+        parts = content.split("## 🔬 Scientific Validation & Benchmark Results")
+        new_content = parts[0] + markdown_content.strip() + "\n"
+        with open('README.md', 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        print("[SUCCESS] README.md updated dynamically (overwrote old results).")
+    else:
         with open('README.md', 'a', encoding='utf-8') as f:
             f.write(markdown_content)
-        print("[SUCCESS] README.md updated dynamically.")
-    else:
-        print("[INFO] README.md already contains validation results. Update skipped.")
+        print("[SUCCESS] README.md updated dynamically (appended new results).")
 
 def push_to_github():
     print("[INFO] Initiating GitHub CI/CD sync...")

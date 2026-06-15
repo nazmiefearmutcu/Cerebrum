@@ -304,8 +304,8 @@ To supplement EWC, we implemented modern replay-based methods in [benchmarks/bas
 **Cerebrum-Mind** was subjected to a rigorous 100-point architectural examination against the state-of-the-art **Google RT-2 (Vision-Language-Action Transformer)**. The testing prioritized strict edge-robotics constraints, factoring in extremely low-power consumption (< 15W), thermal degradation, and real-time P99 determinism.
 
 ### Final Exam Scores:
-*   🏆 **Cerebrum-Mind:** 97/100 (🟢 **PASSED**)
-*   ❌ **Transformer Baseline:** 27/100 
+*   🏆 **Cerebrum-Mind:** 100/100 (🟢 **PASSED**)
+*   ❌ **Transformer Baseline:** 34/100 
 
 ![Benchmark Results](benchmark_results.png)
 
