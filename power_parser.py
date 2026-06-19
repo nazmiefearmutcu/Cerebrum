@@ -11,6 +11,7 @@ import re
 import sys
 import time
 import argparse
+import math
 from datetime import datetime
 from typing import Generator, Tuple, Optional, List
 
@@ -22,11 +23,12 @@ class KalmanFilter:
         self.x = initial_value  # Estimated state value
         self.p = 1.0  # Estimation error covariance
 
-    def filter(self, measurement: float) -> float:
+    def filter(self, measurement: float, dt: float = 1.0) -> float:
         # Prediction update
-        self.p = self.p + self.q
+        self.p = self.p + self.q * dt
         # Measurement update (Kalman gain calculation)
-        k_gain = self.p / (self.p + self.r)
+        denom = self.p + self.r
+        k_gain = self.p / denom if denom != 0.0 else 0.0
         self.x = self.x + k_gain * (measurement - self.x)
         self.p = (1.0 - k_gain) * self.p
         return self.x
@@ -35,7 +37,7 @@ class KalmanFilter:
 class MovingAverageFilter:
     """Sliding-window moving average filter."""
     def __init__(self, window_size: int = 5):
-        self.window_size = window_size
+        self.window_size = max(1, window_size)
         self.history: List[float] = []
 
     def filter(self, value: float) -> float:
@@ -69,20 +71,24 @@ def parse_timestamp(timestamp_str: str) -> Optional[float]:
 def parse_power_watts(line: str) -> float:
     """Extracts power draw in Watts from a tegrastats row."""
     # Look for common Jetson rails: VDD_IN, POM_5V_IN, VDD_CPU, VDD_GPU, etc.
-    # Pattern 1: VDD_IN 4200mW/4200mW
-    match = re.search(r'VDD_IN\s+(\d+)(mW|W)?', line)
+    # Pattern 1: VDD_IN 4200mW or VDD_IN 4.5W or VDD_IN -3000mW
+    pattern = r'([+-]?(?:\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|nan|inf(?:inity)?))'
+    
+    match = re.search(r'VDD_IN\s+' + pattern + r'\s*(mw|w)?', line, re.IGNORECASE)
     if not match:
         # Pattern 2: POM_5V_IN 4.5W or similar
-        match = re.search(r'POM_5V_IN\s+(\d+(?:\.\d+)?)(mW|W)?', line)
+        match = re.search(r'POM_5V_IN\s+' + pattern + r'\s*(mw|w)?', line, re.IGNORECASE)
     if not match:
         # Fallback: look for general mW or W pattern
-        match = re.search(r'(\d+(?:\.\d+)?)\s*(mW|W)', line)
+        match = re.search(pattern + r'\s*(mw|w)', line, re.IGNORECASE)
 
     if match:
         try:
             val = float(match.group(1))
             unit = match.group(2)
-            if unit == 'mW' or not unit:
+            if unit:
+                unit = unit.lower()
+            if unit == 'mw' or not unit:
                 return val / 1000.0
             return val
         except (ValueError, TypeError):
@@ -138,31 +144,48 @@ def calculate_energy(
         noise_filter = MovingAverageFilter(window_size=kwargs.get("window_size", 5))
 
     total_energy_j = 0.0
-    power_vals = []
     
     prev_time: Optional[float] = None
     prev_power: Optional[float] = None
     
+    count = 0
+    sum_power = 0.0
+    peak_power = 0.0
+    
     for t, p in lazy_tegrastats_reader(filepath):
-        # Handle zero or negative power anomalies
-        if p <= 0.0:
-            # Handle anomaly: Clamp/Impute with running mean or absolute value
-            p = abs(p) if p != 0.0 else 0.1
-            
-        # Apply noise filtering
-        if noise_filter is not None:
-            p = noise_filter.filter(p)
-            
-        power_vals.append(p)
-        
-        # Calculate time step
+        # Calculate time step dt & check for discontinuity reset
         if prev_time is not None and t is not None:
             dt = t - prev_time
-            if dt < 0:  # out-of-order safety check
+            max_dt_ceiling = kwargs.get("max_dt_ceiling", 5.0)
+            if dt < 0 or dt > max_dt_ceiling:
+                # Discontinuity! Reset integration chain
+                prev_power = None
+                prev_time = None
                 dt = default_dt
+                if noise_filter is not None:
+                    if isinstance(noise_filter, KalmanFilter):
+                        noise_filter.x = p
+                        noise_filter.p = 1.0
+                    elif isinstance(noise_filter, MovingAverageFilter):
+                        noise_filter.history.clear()
         else:
             dt = default_dt
+
+        # Handle anomalies (Robust Anomaly Imputation)
+        max_power_limit = kwargs.get("max_power_limit", 50.0)
+        if not math.isfinite(p) or p <= 0.0 or p > max_power_limit:
+            p = prev_power if prev_power is not None else 4.2
             
+        # Apply noise filtering & Dynamic/Lazy Kalman Initialization
+        if noise_filter is not None:
+            if count == 0 and isinstance(noise_filter, KalmanFilter):
+                noise_filter.x = p
+            
+            if isinstance(noise_filter, KalmanFilter):
+                p = noise_filter.filter(p, dt)
+            else:
+                p = noise_filter.filter(p)
+                
         # Trapezoidal integration step: E = E + 0.5 * (P_prev + P_current) * dt
         if prev_power is not None:
             total_energy_j += 0.5 * (prev_power + p) * dt
@@ -170,11 +193,15 @@ def calculate_energy(
         prev_time = t
         prev_power = p
         
-    if not power_vals:
+        sum_power += p
+        if count == 0 or p > peak_power:
+            peak_power = p
+        count += 1
+        
+    if count == 0:
         return 0.0, 0.0, 0.0
         
-    mean_power = sum(power_vals) / len(power_vals)
-    peak_power = max(power_vals)
+    mean_power = sum_power / count
     
     return total_energy_j, mean_power, peak_power
 
@@ -218,6 +245,16 @@ def run_baseline_calibration() -> None:
     finally:
         if os.path.exists(temp_file):
             os.remove(temp_file)
+
+
+def parse_log_generator(log_path: str) -> Generator[Tuple[Optional[float], float], None, None]:
+    """Wraps lazy_tegrastats_reader to yield (timestamp_epoch_seconds, power_watts)."""
+    return lazy_tegrastats_reader(log_path)
+
+
+def compute_energy(log_path: str) -> float:
+    """Wraps calculate_energy, returning only the total integrated energy in Joules."""
+    return calculate_energy(log_path)[0]
 
 
 def main():

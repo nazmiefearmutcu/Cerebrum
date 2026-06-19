@@ -198,6 +198,20 @@ def test_torque_to_current_clamping():
     assert torque_to_current(-10.0, torque_constant=0.5, max_current=10.0) == -10.0
 
 
+def test_torque_to_current_zero_division():
+    from physical_validation import torque_to_current
+    # Ensure Kt = 0 does not divide by zero and returns 0.0
+    assert torque_to_current(5.0, torque_constant=0.0) == 0.0
+    assert torque_to_current(5.0, torque_constant=1e-10) == 0.0
+
+
+def test_torque_to_current_hard_limit():
+    from physical_validation import torque_to_current
+    # Even if max_current is larger than 25.0, it must clamp to 25.0
+    assert torque_to_current(20.0, torque_constant=0.5, max_current=30.0) == 25.0
+    assert torque_to_current(-20.0, torque_constant=0.5, max_current=30.0) == -25.0
+
+
 def test_safe_get_telemetry_recovery():
     from physical_validation import safe_get_telemetry
     
@@ -234,4 +248,128 @@ def test_safe_get_telemetry_recovery():
     telem_fallback, ok_fallback = safe_get_telemetry(hw_dead, last_valid_telemetry=last_valid, retries=2)
     assert not ok_fallback
     assert telem_fallback["lidar"][0] == 1.5  # matches last_valid
+
+
+def test_partial_telemetry_dropout_imputation():
+    from physical_validation import safe_get_telemetry
+    
+    class PartialGlitchyHardware:
+        def get_telemetry(self):
+            # Missing "lidar" and "tilt", and "odometry" is None
+            return {
+                "camera": np.array([0.5, 0.5]),
+                "odometry": None
+            }
+            
+    hw = PartialGlitchyHardware()
+    last_valid = {
+        "lidar": np.array([3.0, 3.0, 3.0, 3.0]),
+        "camera": np.array([0.7, 0.3]),
+        "odometry": None,
+        "tilt": np.array([0.1])
+    }
+    
+    telem, ok = safe_get_telemetry(hw, last_valid_telemetry=last_valid, retries=1)
+    assert ok
+    # "camera" should be the one returned from get_telemetry
+    assert np.all(telem["camera"] == np.array([0.5, 0.5]))
+    # "lidar" should be imputed from last_valid
+    assert np.all(telem["lidar"] == np.array([3.0, 3.0, 3.0, 3.0]))
+    # "tilt" should be imputed from last_valid
+    assert np.all(telem["tilt"] == np.array([0.1]))
+    # "odometry" should be imputed from absolute fallback
+    assert np.all(telem["odometry"] == np.array([0.0, 0.0]))
+
+
+def test_safe_get_telemetry_exhausted_retries():
+    from physical_validation import safe_get_telemetry
+    
+    class DeadHardware:
+        def get_telemetry(self):
+            return None
+            
+    hw = DeadHardware()
+    
+    # Scenario A: last_valid is None -> returns absolute fallback
+    telem, ok = safe_get_telemetry(hw, last_valid_telemetry=None, retries=2)
+    assert not ok
+    assert np.all(telem["lidar"] == np.array([10.0, 5.0, 5.0, 5.0]))
+    assert np.all(telem["camera"] == np.array([0.8, 0.2]))
+    assert np.all(telem["odometry"] == np.array([0.0, 0.0]))
+    assert np.all(telem["tilt"] == np.array([0.0]))
+    
+    # Scenario B: last_valid has partial none/missing -> returns last_valid with those keys imputed from fallback
+    last_valid_partial = {
+        "lidar": np.array([1.1, 1.1, 1.1, 1.1]),
+        "camera": None
+    }
+    telem, ok = safe_get_telemetry(hw, last_valid_telemetry=last_valid_partial, retries=2)
+    assert not ok
+    assert np.all(telem["lidar"] == np.array([1.1, 1.1, 1.1, 1.1]))
+    assert np.all(telem["camera"] == np.array([0.8, 0.2])) # imputed from fallback
+    assert np.all(telem["odometry"] == np.array([0.0, 0.0])) # imputed from fallback
+    assert np.all(telem["tilt"] == np.array([0.0])) # imputed from fallback
+
+
+def test_safe_get_telemetry_adversarial_stress():
+    from physical_validation import safe_get_telemetry
+
+    # Mock class that returns alternating partial dropouts & missing keys
+    class AlternatingDropoutsHardware:
+        def __init__(self):
+            self.call_count = 0
+
+        def get_telemetry(self):
+            self.call_count += 1
+            if self.call_count == 1:
+                # Key is missing camera, odometry, tilt; lidar present
+                return {"lidar": np.array([1.0, 2.0, 3.0, 4.0])}
+            elif self.call_count == 2:
+                # Key is present with None camera, others missing
+                return {"camera": None}
+            elif self.call_count == 3:
+                # Key has nested structure (e.g. metadata) which should be ignored by has_any_valid checks but copied
+                return {
+                    "odometry": np.array([0.5, -0.5]),
+                    "extra_metadata": {"status": "ok", "voltage": 12.0}
+                }
+            elif self.call_count == 4:
+                # All keys missing or None
+                return {}
+            else:
+                return None
+
+    hw = AlternatingDropoutsHardware()
+    
+    # 1. First call: returns VDD lidar, rest should fallback
+    telem1, ok1 = safe_get_telemetry(hw, last_valid_telemetry=None, retries=1)
+    assert ok1
+    assert np.all(telem1["lidar"] == np.array([1.0, 2.0, 3.0, 4.0]))
+    assert np.all(telem1["camera"] == np.array([0.8, 0.2])) # fallback
+    assert np.all(telem1["odometry"] == np.array([0.0, 0.0])) # fallback
+    assert np.all(telem1["tilt"] == np.array([0.0])) # fallback
+
+    # 2. Second call: returns camera: None. Since all keys returned are None or missing,
+    # it has no valid keys, retries once, then since retries=1 it fails and uses last_valid (telem1)
+    telem2, ok2 = safe_get_telemetry(hw, last_valid_telemetry=telem1, retries=1)
+    assert not ok2
+    assert np.all(telem2["lidar"] == np.array([1.0, 2.0, 3.0, 4.0])) # from telem1
+
+    # 3. Third call: returns odometry and an extra metadata key (nested structure).
+    # It has a valid key (odometry), so it should succeed.
+    # The return should copy the extra_metadata key and impute others from telem2 (which contains lidar/camera/tilt)
+    telem3, ok3 = safe_get_telemetry(hw, last_valid_telemetry=telem2, retries=1)
+    assert ok3
+    assert np.all(telem3["odometry"] == np.array([0.5, -0.5]))
+    assert np.all(telem3["lidar"] == np.array([1.0, 2.0, 3.0, 4.0])) # from last_valid
+    assert np.all(telem3["camera"] == np.array([0.8, 0.2])) # from last_valid
+    assert telem3["extra_metadata"] == {"status": "ok", "voltage": 12.0}
+
+    # 4. Fourth call: returns {}, no valid key. It retries, fails, and returns last_valid (telem3)
+    telem4, ok4 = safe_get_telemetry(hw, last_valid_telemetry=telem3, retries=1)
+    assert not ok4
+    assert np.all(telem4["odometry"] == np.array([0.5, -0.5]))
+    assert telem4["extra_metadata"] == {"status": "ok", "voltage": 12.0}
+
+
 

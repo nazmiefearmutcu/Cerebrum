@@ -311,6 +311,14 @@ class Geometric3DOFSolver:
         Handles Z-axis singularity at x=0, y=0 by locking base angle to 0.0.
         Clips out-of-reach coordinates to workspace bounds to prevent arccos NaN.
         """
+        # Check if any coordinate x, y, z is NaN or Inf (non-finite)
+        if not (np.isfinite(x) and np.isfinite(y) and np.isfinite(z)):
+            return ((0.0, 0.0, 0.0), False)
+
+        # Check if x, y, or z is extremely large to prevent OverflowError when squaring
+        if abs(x) > 1e150 or abs(y) > 1e150 or abs(z) > 1e150:
+            return ((0.0, 0.0, 0.0), False)
+
         # 1. Base angle with singularity handling
         if x == 0.0 and y == 0.0:
             theta0 = 0.0
@@ -369,6 +377,8 @@ def joint_to_ticks(joint_angle: float, ticks_per_rad: float = 1000.0) -> int:
     """
     Converts continuous joint angle (radians) to integer encoder ticks.
     """
+    if not np.isfinite(joint_angle):
+        return 0
     ticks = joint_angle * ticks_per_rad
     return int(round(ticks))
 
@@ -377,8 +387,13 @@ def torque_to_current(torque: float, torque_constant: float = 0.5, max_current: 
     """
     Converts motor torque command to current with a protective soft current clamp.
     """
+    if abs(torque_constant) < 1e-9:
+        return 0.0
     current = torque / torque_constant
-    return float(np.clip(current, -max_current, max_current))
+    abs_max_current = abs(max_current)
+    effective_limit = min(abs_max_current, 25.0)
+    return float(np.clip(current, -effective_limit, effective_limit))
+
 
 
 class KalmanFilter:
@@ -416,21 +431,40 @@ def safe_get_telemetry(hw: Any, last_valid_telemetry: Optional[Dict[str, Any]] =
     If dropouts are encountered, attempts reconnect up to `retries` times.
     Falls back gracefully to `last_valid_telemetry` if all retries fail.
     """
-    for attempt in range(retries):
-        telem = hw.get_telemetry()
-        if telem is not None and not all(v is None for v in telem.values()):
-            return telem, True
-        time.sleep(0.005)
-        
-    if last_valid_telemetry is not None:
-        return last_valid_telemetry, False
-        
-    # Absolute default fallback
     fallback = {
         "lidar": np.array([10.0, 5.0, 5.0, 5.0]),
         "camera": np.array([0.8, 0.2]),
         "odometry": np.array([0.0, 0.0]),
         "tilt": np.array([0.0])
     }
+
+    for attempt in range(retries):
+        telem = hw.get_telemetry()
+        if telem is not None:
+            has_any_valid = False
+            for k in fallback:
+                if telem.get(k) is not None:
+                    has_any_valid = True
+                    break
+            
+            if has_any_valid:
+                imputed = dict(telem)
+                for key in fallback:
+                    if key not in imputed or imputed[key] is None:
+                        if last_valid_telemetry is not None and key in last_valid_telemetry and last_valid_telemetry[key] is not None:
+                            imputed[key] = last_valid_telemetry[key]
+                        else:
+                            imputed[key] = fallback[key]
+                return imputed, True
+        time.sleep(0.005)
+        
+    if last_valid_telemetry is not None:
+        imputed_last = dict(last_valid_telemetry)
+        for key in fallback:
+            if key not in imputed_last or imputed_last[key] is None:
+                imputed_last[key] = fallback[key]
+        return imputed_last, False
+        
     return fallback, False
+
 
