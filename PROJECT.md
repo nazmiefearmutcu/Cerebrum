@@ -28,3 +28,38 @@
 - `cerebrum/`: Core source files of the CerebrumNet model.
 - `cerebrum_submission.py`: Bundled single-file submission.
 - `tests/`: Test suite files.
+
+## Hardware Requirements & Sim2Real Calibration
+- **On-board Compute:** NVIDIA Jetson Orin Nano (8GB) or Raspberry Pi 5.
+- **Communication Protocol:** CANopen / Modbus RTU interface (500 kbps) for motor control.
+- **Pin Configuration (Typical GPIO mapping):**
+  - GPIO 17 (Pin 11): CAN Tx
+  - GPIO 18 (Pin 12): CAN Rx
+  - GPIO 27, 22 (Pins 13, 15): Quadrature Encoder inputs A and B
+- **Electrical Tolerances:**
+  - Logic voltage: 3.3V (3.0V - 3.6V safe range)
+  - Motor supply voltage: 12.0V - 24.0V nominal (Low-voltage cutoff at 11.1V)
+  - Maximum current limits: 10.0 A per motor coil (soft-clamped to prevent winding burn).
+
+## Simulation Setup & CLI Parameter Guide
+- **Calibrate metrics database:**
+  ```bash
+  python metrics_collector.py --calibrate
+  ```
+- **Measure baseline power draw:**
+  ```bash
+  python power_parser.py --baseline
+  ```
+- **Run tray-balancing dynamics simulation (with 20% noise and motor command clamping):**
+  ```bash
+  python run_validation_sim.py --model cerebrum --episodes 500 --noise_level 0.20 --clamp_motor
+  ```
+- **Run continuous memory stress profiling:**
+  ```bash
+  pytest -s tests/test_stress.py
+  ```
+- **Run Counterfactual / Adversarial validation suites:**
+  ```bash
+  pytest tests/test_adversarial.py
+  ```
+

@@ -15,3 +15,8 @@ runs/
 .claude/
 .agents/
 
+# SQLite databases & verification run logs
+*.db
+*_logs.json
+
+

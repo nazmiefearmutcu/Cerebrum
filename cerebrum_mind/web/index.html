@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cerebrum-Mind OS | Robot Cognitive Dashboard</title>
+  <!-- Modern typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar: Robot Profile & Catalog -->
+    <aside class="sidebar" id="sidebar-panel">
+      <div class="logo-area">
+        <div class="logo-icon">🧠</div>
+        <div class="logo-text">
+          <h1>CEREBRUM-MIND</h1>
+          <span>Robot OS v1.0.0</span>
+        </div>
+      </div>
+
+      <!-- Active Robot Diagnostic Card -->
+      <section class="active-card" id="active-robot-card">
+        <h2 class="section-title">Active Control Profile</h2>
+        <div class="robot-status-banner">
+          <div class="pulse-indicator online" id="status-pulse"></div>
+          <span class="status-lbl" id="status-text">Core Ready</span>
+        </div>
+        <div class="profile-details">
+          <div class="detail-row">
+            <span class="label">Name:</span>
+            <span class="val" id="active-name">Unitree G1</span>
+          </div>
+          <div class="detail-row">
+            <span class="label">Class:</span>
+            <span class="val" id="active-class">Humanoid</span>
+          </div>
+          <div class="detail-row">
+            <span class="label">Actuators:</span>
+            <span class="val" id="active-dof">23 DoF</span>
+          </div>
+          <div class="detail-row">
+            <span class="label">Height / Weight:</span>
+            <span class="val" id="active-dimensions">1.27 m / 35 kg</span>
+          </div>
+        </div>
+        
+        <div class="sensor-chips" id="active-sensors">
+          <!-- Dynamically populated sensor chips -->
+          <span class="sensor-chip">3D LiDAR</span>
+          <span class="sensor-chip">Depth Camera</span>
+          <span class="sensor-chip">IMU</span>
+        </div>
+
+        <div class="physics-telemetry-panel" id="physics-panel" style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border-glass); display: flex; flex-direction: column; gap: 8px;">
+          <div class="detail-row">
+            <span class="label">Kinematics Error:</span>
+            <span class="val" id="active-kin-err" style="color: var(--accent-cyan); font-family: 'Space Mono', monospace;">0.000m</span>
+          </div>
+          <div class="detail-row">
+            <span class="label">Landing G-Force:</span>
+            <span class="val" id="active-impact" style="color: var(--color-warning); font-family: 'Space Mono', monospace;">0.00 G</span>
+          </div>
+          <div class="detail-row">
+            <span class="label">Fluid Slosh Index:</span>
+            <span class="val" id="active-slosh" style="color: var(--accent-purple); font-family: 'Space Mono', monospace;">0.000</span>
+          </div>
+          <div class="detail-row">
+            <span class="label">Wheel Slip Speed:</span>
+            <span class="val" id="active-slip" style="color: var(--color-info); font-family: 'Space Mono', monospace;">0.00 m/s</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Robot Catalog -->
+      <section class="catalog" id="robot-catalog-section">
+        <div class="catalog-header">
+          <h2 class="section-title">Robot Catalog</h2>
+          <button class="add-robot-btn" id="open-creator-btn" title="Create Custom Robot">+</button>
+        </div>
+        <div class="catalog-list" id="robot-list-container">
+          <!-- Dynamically populated robot profiles -->
+        </div>
+      </section>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="main-workspace" id="main-content">
+      <!-- Vitals Header -->
+      <header class="vitals-header" id="vitals-dashboard">
+        <div class="vital-card" id="vital-pc-error">
+          <div class="vital-icon error-color">📉</div>
+          <div class="vital-data">
+            <span class="vital-label">PC Subspace Error</span>
+            <span class="vital-value" id="val-pc-error">0.0000</span>
+          </div>
+        </div>
+        <div class="vital-card" id="vital-free-energy">
+          <div class="vital-icon energy-color">⚡</div>
+          <div class="vital-data">
+            <span class="vital-label">Langevin Free Energy</span>
+            <span class="vital-value" id="val-free-energy">0.0000</span>
+          </div>
+        </div>
+        <div class="vital-card" id="vital-synapse-lock">
+          <div class="vital-icon lock-color">🔒</div>
+          <div class="vital-data">
+            <span class="vital-label">Synapses Consolidated</span>
+            <span class="vital-value" id="val-synapse-lock">0.0%</span>
+          </div>
+        </div>
+        <div class="vital-card" id="vital-kp-alignment">
+          <div class="vital-icon alignment-color">🔄</div>
+          <div class="vital-data">
+            <span class="vital-label">Kolen-Pollack Alignment</span>
+            <span class="vital-value" id="val-kp-alignment">0.00</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Central Dashboard Content Grid -->
+      <div class="dashboard-grid">
+        <!-- Center Stage: Robot Visualizer & Control -->
+        <section class="grid-card visualizer-card" id="visualizer-stage">
+          <div class="card-header">
+            <h2 class="card-title">Sensory-Motor Joint Telemetry</h2>
+            <div class="card-sub">Active Joint States & Torque Feedback</div>
+          </div>
+          
+          <div class="visualizer-container">
+            <!-- Left Side: Interactive Joint List -->
+            <div class="joint-telemetry-list" id="joint-telemetry-container">
+              <!-- Dynamically populated joints list with rotation angles -->
+            </div>
+            
+            <!-- Right Side: Beautiful SVG Skeleton Visualizer -->
+            <div class="skeleton-display">
+              <svg id="robot-svg" viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">
+                <!-- Glowing filters for aesthetics -->
+                <defs>
+                  <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                  <filter id="glow-magenta" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+                
+                <!-- Robot Background Outline -->
+                <rect x="0" y="0" width="200" height="400" rx="10" fill="rgba(10, 15, 30, 0.5)" stroke="rgba(255,255,255,0.05)" />
+                
+                <!-- Robot Links -->
+                <line id="link-torso" x1="100" y1="100" x2="100" y2="220" stroke="#2a355c" stroke-width="8" />
+                <line id="link-shoulders" x1="60" y1="120" x2="140" y2="120" stroke="#2a355c" stroke-width="6" />
+                <line id="link-hips" x1="75" y1="220" x2="125" y2="220" stroke="#2a355c" stroke-width="6" />
+                
+                <!-- Left Arm Linkage -->
+                <line id="link-l-arm-upper" x1="60" y1="120" x2="40" y2="170" stroke="#334278" stroke-width="4" />
+                <line id="link-l-arm-lower" x1="40" y1="170" x2="30" y2="210" stroke="#334278" stroke-width="3" />
+                
+                <!-- Right Arm Linkage -->
+                <line id="link-r-arm-upper" x1="140" y1="120" x2="160" y2="170" stroke="#334278" stroke-width="4" />
+                <line id="link-r-arm-lower" x1="160" y1="170" x2="170" y2="210" stroke="#334278" stroke-width="3" />
+                
+                <!-- Left Leg Linkage -->
+                <line id="link-l-leg-upper" x1="75" y1="220" x2="70" y2="290" stroke="#334278" stroke-width="4" />
+                <line id="link-l-leg-lower" x1="70" y1="290" x2="70" y2="350" stroke="#334278" stroke-width="3" />
+                
+                <!-- Right Leg Linkage -->
+                <line id="link-r-leg-upper" x1="125" y1="220" x2="130" y2="290" stroke="#334278" stroke-width="4" />
+                <line id="link-r-leg-lower" x1="130" y1="290" x2="130" y2="350" stroke="#334278" stroke-width="3" />
+                
+                <!-- Joint Nodes (Interactable/Glow on active) -->
+                <!-- Head -->
+                <circle id="joint-head" cx="100" cy="70" r="16" fill="url(#head-grad)" stroke="rgba(0, 242, 254, 0.4)" stroke-width="2" />
+                <radialGradient id="head-grad" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#091b35" />
+                  <stop offset="100%" stop-color="#0f2b5c" />
+                </radialGradient>
+
+                <!-- Shoulder joints -->
+                <circle id="joint-l-shoulder" cx="60" cy="120" r="6" fill="#00f2fe" filter="url(#glow-cyan)" />
+                <circle id="joint-r-shoulder" cx="140" cy="120" r="6" fill="#00f2fe" filter="url(#glow-cyan)" />
+                
+                <!-- Elbow joints -->
+                <circle id="joint-l-elbow" cx="40" cy="170" r="5" fill="#7f00ff" filter="url(#glow-magenta)" />
+                <circle id="joint-r-elbow" cx="160" cy="170" r="5" fill="#7f00ff" filter="url(#glow-magenta)" />
+                
+                <!-- Wrist joints -->
+                <circle id="joint-l-wrist" cx="30" cy="210" r="4" fill="#00f2fe" />
+                <circle id="joint-r-wrist" cx="170" cy="210" r="4" fill="#00f2fe" />
+                
+                <!-- Hip joints -->
+                <circle id="joint-l-hip" cx="75" cy="220" r="6" fill="#7f00ff" />
+                <circle id="joint-r-hip" cx="125" cy="220" r="6" fill="#7f00ff" />
+                
+                <!-- Knee joints -->
+                <circle id="joint-l-knee" cx="70" cy="290" r="5" fill="#00f2fe" filter="url(#glow-cyan)" />
+                <circle id="joint-r-knee" cx="130" cy="290" r="5" fill="#00f2fe" filter="url(#glow-cyan)" />
+                
+                <!-- Ankle joints -->
+                <circle id="joint-l-ankle" cx="70" cy="350" r="4" fill="#7f00ff" />
+                <circle id="joint-r-ankle" cx="130" cy="350" r="4" fill="#7f00ff" />
+              </svg>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right Side: AI Cognitive Advisor & Macro Console -->
+        <div class="console-sidebar">
+          <!-- Humanoid Macros Panel -->
+          <section class="grid-card macros-card" id="macros-panel">
+            <div class="card-header">
+              <h2 class="card-title">Cognitive Task Macros</h2>
+              <div class="card-sub">Deploy Pre-Trained Active Inference Tasks</div>
+            </div>
+            
+            <div class="macros-grid" id="macros-container">
+              <!-- Dynamically populated buttons based on robot macros -->
+            </div>
+          </section>
+
+          <!-- AI Advisor Panel -->
+          <section class="grid-card advisor-card" id="advisor-panel">
+            <div class="card-header">
+              <h2 class="card-title">AI Cognitive Advisor</h2>
+              <div class="card-sub">Diagnostics & Architecture Optimization Tips</div>
+            </div>
+            <div class="advice-list" id="advice-container">
+              <!-- Dynamically populated diagnostic cards -->
+            </div>
+          </section>
+
+          <!-- Macro Exec Logs -->
+          <section class="grid-card logger-card" id="logger-panel">
+            <div class="card-header">
+              <h2 class="card-title">OS Action Console</h2>
+              <div class="card-sub">Motor signals, predictions & environment feedback</div>
+            </div>
+            <div class="console-box" id="console-output">
+              <!-- Real-time scrollable logs -->
+              <span class="system-line">[SYSTEM] Cerebrum-Mind kernel initialized successfully.</span>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- Lower Panel: Cognitive Training Studio -->
+      <section class="grid-card training-card" id="training-studio">
+        <div class="training-layout">
+          <!-- Sliders and controllers -->
+          <div class="training-controls">
+            <div class="card-header">
+              <h2 class="card-title">Cognitive Training Studio</h2>
+              <div class="card-sub">Hebbian Plasticiy & Langevin Noise Tuning</div>
+            </div>
+            
+            <div class="studio-buttons">
+              <button class="primary-btn" id="train-start-btn">Start Core Training</button>
+              <button class="secondary-btn" id="train-stop-btn" disabled>Halt Training</button>
+            </div>
+
+            <div class="slider-group">
+              <div class="slider-header">
+                <span class="slider-label">Hebbian Learning Rate (&eta;)</span>
+                <span class="slider-val" id="val-eta">0.05</span>
+              </div>
+              <input type="range" class="control-slider" id="slider-eta" min="0.001" max="0.5" step="0.005" value="0.05">
+            </div>
+
+            <div class="slider-group">
+              <div class="slider-header">
+                <span class="slider-label">Langevin noise (T_floor)</span>
+                <span class="slider-val" id="val-temp">0.10</span>
+              </div>
+              <input type="range" class="control-slider" id="slider-temp" min="0.01" max="0.5" step="0.01" value="0.10">
+            </div>
+          </div>
+
+          <!-- Training Plots (Canvas-based) -->
+          <div class="training-charts">
+            <div class="chart-container">
+              <span class="chart-title">Predictive Coding Convergence Curve</span>
+              <canvas id="chart-error" width="300" height="150"></canvas>
+            </div>
+            <div class="chart-container">
+              <span class="chart-title">Metaplastic Homeostasis / Energy</span>
+              <canvas id="chart-energy" width="300" height="150"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Custom Robot Creator Dialog -->
+  <dialog id="creator-dialog" class="creator-modal">
+    <form method="dialog" class="modal-form">
+      <div class="modal-header">
+        <h2>Define Custom Robot Configuration</h2>
+        <button type="button" class="close-modal-btn" id="close-modal-x">&times;</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="robot-name-input">Robot Name</label>
+            <input type="text" id="robot-name-input" placeholder="e.g. Cerebrum Biped-X" required>
+          </div>
+          <div class="form-group">
+            <label for="robot-class-select">Robot Class</label>
+            <select id="robot-class-select">
+              <option value="Humanoid">Humanoid</option>
+              <option value="Biped">Biped</option>
+              <option value="Quadruped">Quadruped</option>
+              <option value="Robotic Arm">Robotic Arm</option>
+              <option value="Mobile Base">Mobile Base</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="robot-height-input">Height (m)</label>
+            <input type="text" id="robot-height-input" placeholder="e.g. 1.65 m">
+          </div>
+          <div class="form-group">
+            <label for="robot-weight-input">Weight (kg)</label>
+            <input type="text" id="robot-weight-input" placeholder="e.g. 48 kg">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Sensory Array (Select all that apply)</label>
+          <div class="checkbox-grid">
+            <label class="checkbox-container">
+              <input type="checkbox" name="sensors" value="3D LiDAR" checked> 3D LiDAR
+            </label>
+            <label class="checkbox-container">
+              <input type="checkbox" name="sensors" value="Depth Camera" checked> Depth Camera
+            </label>
+            <label class="checkbox-container">
+              <input type="checkbox" name="sensors" value="IMU" checked> IMU
+            </label>
+            <label class="checkbox-container">
+              <input type="checkbox" name="sensors" value="Tactile Sensors"> Tactile Sensors
+            </label>
+            <label class="checkbox-container">
+              <input type="checkbox" name="sensors" value="Joint Torque Encoders" checked> Joint Torque Encoders
+            </label>
+            <label class="checkbox-container">
+              <input type="checkbox" name="sensors" value="Microphone Array"> Microphone Array
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="robot-joints-input">Actuator Joints (Comma or space separated)</label>
+          <textarea id="robot-joints-input" rows="4" placeholder="e.g. neck_yaw, neck_pitch, l_shoulder_pitch, l_shoulder_roll, l_elbow, r_shoulder_pitch, r_shoulder_roll, r_elbow, waist_yaw, l_hip, l_knee, l_ankle, r_hip, r_knee, r_ankle" required></textarea>
+          <small class="help-text">Define the Degrees of Freedom (DoF) for the robot motor system.</small>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn secondary-btn" id="close-modal-btn">Cancel</button>
+        <button type="submit" class="btn primary-btn" id="submit-robot-btn">Register Robot OS Profile</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -260,7 +260,51 @@ python3 benchmarks/run_scaling.py
 
 ---
 
-## 9. Cognitive & Embodied Enhancements (Gap Fixes)
+## 9. Hardware Requirements & Sim2Real Calibration
+
+To successfully deploy and run CEREBRUM-Mind on physical edge hardware (or simulated digital-twin beds), the environment must conform to the following specifications:
+
+*   **On-board Compute:** NVIDIA Jetson Orin Nano (8GB) or Raspberry Pi 5.
+*   **Communication Protocol:** CANopen / Modbus RTU interface (500 kbps) for brushless DC servo drives.
+*   **Pin Configuration (Typical GPIO allocation):**
+    *   GPIO 17 (Pin 11): CAN Tx
+    *   GPIO 18 (Pin 12): CAN Rx
+    *   GPIO 27, 22 (Pins 13, 15): Quadrature Encoder A/B inputs
+*   **Electrical Tolerances:**
+    *   Logic voltage: 3.3V (Tolerance: 3.0V - 3.6V)
+    *   Motor supply voltage: 12.0V - 24.0V nominal (Low-voltage cutoff at 11.1V for LiPo 3S protection).
+    *   Maximum dynamic current limit: 10.0 A per motor coil (soft-clamped to prevent winding burn).
+
+---
+
+## 10. Simulation Setup & CLI Parameter Guide
+
+You can launch and verify different aspects of the predictive coding simulation, stress testing, and metrics tracking using the following CLI parameters:
+
+*   **Calibrate metrics database:**
+    ```bash
+    python metrics_collector.py --calibrate
+    ```
+*   **Measure baseline power draw:**
+    ```bash
+    python power_parser.py --baseline
+    ```
+*   **Run tray-balancing dynamics simulation (with 20% noise and motor command clamping):**
+    ```bash
+    python run_validation_sim.py --model cerebrum --episodes 500 --noise_level 0.20 --clamp_motor
+    ```
+*   **Run continuous memory stress profiling:**
+    ```bash
+    pytest -s tests/test_stress.py
+    ```
+*   **Run Counterfactual / Adversarial validation suites:**
+    ```bash
+    pytest tests/test_adversarial.py
+    ```
+
+---
+
+## 11. Cognitive & Embodied Enhancements (Gap Fixes)
 
 We have addressed the critical scientific adequacy and robotics embodiment gaps highlighted during architectural review:
 

@@ -160,3 +160,37 @@ Ağırlık güncelleme dinamiğinde ileri ağırlıklar $W$ ile geri besleme ağ
 - [ ] Metrik olmayan asimetrik graflardaki (TreeRelationalGraph) few-shot tahmin başarısı, flat-prior baz hattına göre belirgin şekilde yüksek çıkmalıdır.
 - [ ] Task A görevinin unutulma oranı, Task C'nin öğrenilmesinden sonra (200+ eğitim adımı geçildiğinde dahi) 0.15'in altında tutulmalıdır.
 - [ ] ROS node telemetrisi sıfır race condition ve System 1 tetiklenmelerinde yumuşak hız komut geçişlerini doğrulamalıdır.
+
+## Follow-up — 2026-06-15T13:22:10Z
+
+Deepen the simulation and stress test suite to perform hardware-level constraint profiling (P99 latency, RAM ceilings, chaos noise, and simulated CPU/memory constraints) to scientifically prove the edge-robotics efficiency of Cerebrum-Mind over the Transformer baseline.
+
+Working directory: /Users/nazmi/Cerebrum
+Integrity mode: development
+
+## Requirements
+
+### R1. Latency & Jitter Enforcement (P99 Kill-Switches)
+Integrate P99 latency and max jitter limits into the stress tests (`tests/test_stress.py`). Under a continuous 1000-step execution, assert that Cerebrum-Mind's P99 latency remains strictly under 50ms and maximum latency remains under 100ms. If limits are exceeded, raise an `AssertionError`.
+
+### R2. Memory Profiling & Ceilings
+Implement dynamic RAM tracking (via `psutil` or `tracemalloc`) in `tests/test_stress.py`. Track memory growth from baseline during continuous runs, and assert that the peak memory footprint does not exceed a 50.0 MB threshold.
+
+### R3. Adversarial Noise Injection (Chaos Engineering)
+In `tests/test_run_validation_sim.py`, inject up to 20% Gaussian noise into clean simulated sensor inputs. Verify that the model remains robust and that computed motor commands remain within valid physical bounds of `[-1.0, 1.0]`.
+
+### R4. Simulated CPU/Memory Resource Constraints
+Implement simulated resource limits inside the test logic. Set up the baseline Transformer model test (`tests/test_challenger_stress.py`) to trigger a simulated Out-of-Memory (OOM) or timeout failure when running under these constraints, while Cerebrum passes cleanly.
+
+## Acceptance Criteria
+
+### Latency and Memory Constraints
+- [ ] Running `pytest tests/test_stress.py` passes for Cerebrum under the < 50ms P99 latency limit and < 50.0 MB memory ceiling.
+- [ ] Running `pytest tests/test_challenger_stress.py` fails due to simulated resource constraint violations (memory ceiling breach or latency budget timeout).
+
+### Adversarial Robustness
+- [ ] Running `pytest tests/test_run_validation_sim.py` passes successfully with noise injection, confirming motor commands remain bounded.
+
+### Automated Reporting
+- [ ] Running `python3 finalize_validation.py` dynamically computes the final scores, generates the updated graph, overwrites the results in the `README.md`, and commits the changes.
+
