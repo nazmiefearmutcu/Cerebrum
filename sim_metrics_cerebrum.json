@@ -1,9 +1,9 @@
 {
     "success_rate": 1.0,
-    "mean_latency_ms": 1.1635007429664257,
-    "p99_latency_ms": 3.237060078536104,
-    "mean_power_watts": 4.1986372073744205,
-    "peak_power_watts": 4.964247916819877,
-    "peak_memory_mb": 212.78125,
+    "mean_latency_ms": 1.0430765965204045,
+    "p99_latency_ms": 1.2826668350317048,
+    "mean_power_watts": 4.201594692325456,
+    "peak_power_watts": 5.005628649415591,
+    "peak_memory_mb": 213.109375,
     "total_episodes": 100
 }
