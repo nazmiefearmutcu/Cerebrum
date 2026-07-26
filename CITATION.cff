@@ -19,10 +19,13 @@ keywords:
   - free-energy
   - neuromorphic
   - continual-learning
-  - numpy
+  - pytorch
 abstract: >-
   CEREBRUM is a biologically plausible, backpropagation-free learning
   architecture with fully local plasticity, targeted at neuromorphic edge
-  hardware. Written in pure NumPy — no autograd, no PyTorch or JAX — it
+  hardware. It is built on PyTorch tensors but uses no autograd: every
+  weight, feedback and precision update is a hand-written local rule. It
   coordinates inference, routing and learning as noisy gradient descent on
   a single unified free-energy functional across three physical timescales.
+  It is exploratory research and makes no scaling claim; see the README for
+  the negative results that bound it.
