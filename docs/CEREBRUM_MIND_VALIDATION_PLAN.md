@@ -1,6 +1,13 @@
 # Scientific Validation Plan: CEREBRUM-Mind Embodied Robotics
+
+> **STATUS: UNEXECUTED PLAN.** Nothing in this document has been run. It is a *proposal* for
+> experiments on physical robot hardware. No such hardware exists in this project, no physical
+> trial has taken place, and every hypothesis below ($H_1$–$H_5$) is untested. The hardware
+> paths in this repository (`run_physical_validation.py`, `power_parser.py`) are mocks.
+> Read this as a wish list, not as evidence.
+
 **Document Version:** 1.0.0  
-**Status:** DRAFT SPECIFICATION  
+**Status:** DRAFT SPECIFICATION — NOT EXECUTED  
 **Target Architecture:** CEREBRUM-Mind (Predictive-Coding, Backprop-Free, Local-Plasticity Neuromorphic Robot OS)  
 **Primary Objective:** Scientifically validate that CEREBRUM-Mind provides a robust, intelligent, and mathematically verifiable advantage over standard sequence-mixing (Transformer/MLP) baselines on physical robotic edge hardware.
 
@@ -282,11 +289,11 @@ This matrix maps every scientific claim to its corresponding validation file, si
 
 | Hypothesis ID | Codebase Reference | Simulated Task | Real-World Physical Test | Statistical Verification |
 | :--- | :--- | :--- | :--- | :--- |
-| **$H_1$ (Sample Efficiency)** | [grid_head.py](file:///Users/nazmi/Cerebrum/cerebrum/grid_head.py), [unified.py](file:///Users/nazmi/Cerebrum/cerebrum/unified.py) | `benchmarks/tasks/graph_completion.py` | Physical arena navigation (unobserved shortcuts, $K \le 5$). | Two-sample t-test comparing $\eta_{\text{path}}$ of CEREBRUM vs. DT ($p < 0.05$). |
-| **$H_2$ (Energy Sparsity)** | [counters.py](file:///Users/nazmi/Cerebrum/cerebrum/counters.py), [energy.py](file:///Users/nazmi/Cerebrum/cerebrum/energy.py) | `benchmarks/run_energy.py` | Compute board current logging during physical trials. | Regression analysis mapping task competence (error decay) to power reduction. |
-| **$H_3$ (Continual Learning)**| [metaplasticity.py](file:///Users/nazmi/Cerebrum/cerebrum/metaplasticity.py), [unified.py](file:///Users/nazmi/Cerebrum/cerebrum/unified.py) | `benchmarks/tasks/continual.py` | Multi-room sequential chores (A $\rightarrow$ B $\rightarrow$ C). | Repeated measures ANOVA comparing Task A forgetting across seeds ($N=8$, $95\%$ CI). |
-| **$H_4$ (Real-Time Control)**| [reflex.py](file:///Users/nazmi/Cerebrum/cerebrum/grounding/reflex.py), [ros_node.py](file:///Users/nazmi/Cerebrum/cerebrum/grounding/ros_node.py) | `benchmarks/run_household.py` (obstacle injection) | Dynamic obstacle avoidance (moving obstacle placement). | Latency profile comparison ($\tau_{\text{System1}}$ vs. $\tau_{\text{System2}}$) using Wilcoxon signed-rank test. |
-| **$H_5$ (Noise Robustness)** | [sensory.py](file:///Users/nazmi/Cerebrum/cerebrum/grounding/sensory.py), [pc_core.py](file:///Users/nazmi/Cerebrum/cerebrum/pc_core.py) | `benchmarks/run_uncertainty.py` | Sensor dropout injection during physical navigation. | AUROC scoring mapping predictive entropy to tracking errors ($AUROC \ge 0.60$). |
+| **$H_1$ (Sample Efficiency)** | [grid_head.py](../cerebrum/grid_head.py), [unified.py](../cerebrum/unified.py) | `benchmarks/tasks/graph_completion.py` | Physical arena navigation (unobserved shortcuts, $K \le 5$). | Two-sample t-test comparing $\eta_{\text{path}}$ of CEREBRUM vs. DT ($p < 0.05$). |
+| **$H_2$ (Energy Sparsity)** | [counters.py](../cerebrum/counters.py), [energy.py](../cerebrum/energy.py) | `benchmarks/run_energy.py` | Compute board current logging during physical trials. | Regression analysis mapping task competence (error decay) to power reduction. |
+| **$H_3$ (Continual Learning)**| [metaplasticity.py](../cerebrum/metaplasticity.py), [unified.py](../cerebrum/unified.py) | `benchmarks/tasks/continual.py` | Multi-room sequential chores (A $\rightarrow$ B $\rightarrow$ C). | Repeated measures ANOVA comparing Task A forgetting across seeds ($N=8$, $95\%$ CI). |
+| **$H_4$ (Real-Time Control)**| [reflex.py](../cerebrum/grounding/reflex.py), [ros_node.py](../cerebrum/grounding/ros_node.py) | `benchmarks/run_household.py` (obstacle injection) | Dynamic obstacle avoidance (moving obstacle placement). | Latency profile comparison ($\tau_{\text{System1}}$ vs. $\tau_{\text{System2}}$) using Wilcoxon signed-rank test. |
+| **$H_5$ (Noise Robustness)** | [sensory.py](../cerebrum/grounding/sensory.py), [pc_core.py](../cerebrum/pc_core.py) | `benchmarks/run_uncertainty.py` | Sensor dropout injection during physical navigation. | AUROC scoring mapping predictive entropy to tracking errors ($AUROC \ge 0.60$). |
 
 ---
 
