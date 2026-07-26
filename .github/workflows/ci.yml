@@ -24,7 +24,10 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install numpy pytest
+        # CPU-only torch wheels: the default PyPI wheel ships the CUDA runtime
+        # and is far larger than a GitHub-hosted runner needs.
+        pip install torch --index-url https://download.pytorch.org/whl/cpu
+        pip install -r requirements.txt
 
     - name: Run test suite
       run: |

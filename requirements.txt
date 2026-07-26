@@ -1,2 +1,9 @@
 numpy==2.0.0
 pytest==8.2.2
+# The cerebrum package is a PyTorch-tensor implementation: cerebrum/pc_core.py,
+# gate.py, neuromod.py, counters.py, workspace_net.py and others all `import
+# torch` at module scope. Omitting it here is why every CI run since
+# 2026-06-11 failed with "ModuleNotFoundError: No module named 'torch'".
+torch>=2.4
+# Used by the memory/latency stress tests and by metrics_collector.py.
+psutil>=5.9
