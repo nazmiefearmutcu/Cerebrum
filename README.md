@@ -442,7 +442,11 @@ number.
 ### (d) Continual learning — protection is **BUDGET-BOUNDED** (the FM4 break)
 
 `python3 benchmarks/run_continual_hard.py` (8 seeds, `T=0` eval, single fixed knob set) stresses the
-metaplastic fuse on three axes. The committed run is `continual_hard_out.log`.
+metaplastic fuse on three axes. The numbers below are quoted from the committed run,
+`continual_hard_out.log`. A fresh re-run on this checkout reproduces **every verdict** — same
+HOLDS/BREAKS pattern, same break point, same sign and ordering of the tax — with the means drifting
+by at most ~0.015 (e.g. the 200-pass `forgetA` reads 0.152 in the committed log and 0.142 on
+re-run). Treat the third decimal as noise; the verdicts are what carry.
 
 **Axis 1 — longer streams.** `forgetA` creeps 0.038 → 0.124 across 3 → 10 tasks but stays
 CI-separated below always-plastic (~0.40) at every length. Length alone does not break protection
