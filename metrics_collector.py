@@ -352,6 +352,16 @@ class MetricsCollector:
         """
         Binds to a specific CognitiveBridge instance using types.MethodType to override
         step_predictive_coding dynamically and asynchronously measure performance.
+
+        Scope of what is actually MEASURED by the patched step:
+          * latency_ms  -- real: wall-clock time around the wrapped call.
+          * memory_mb   -- real: this process's RSS via psutil (0.0 if psutil is absent).
+          * diverged    -- real: NaN / Inf / out-of-bounds check on the state vectors.
+          * power_watts -- NOT MEASURED. There is no in-process power telemetry on a
+            generic host, so 0.0 is recorded. Do not read the power columns of this
+            collector as a measurement. Real board power requires an external source
+            (e.g. `power_parser.py` fed with genuine Jetson `tegrastats` output on the
+            actual device); this collector never had access to one.
         """
         if not hasattr(bridge, "step_predictive_coding"):
             raise AttributeError("Target bridge does not have 'step_predictive_coding' method.")
@@ -412,13 +422,14 @@ class MetricsCollector:
                     process = psutil.Process()
                     mem_mb = process.memory_info().rss / (1024 * 1024)
                 except Exception:
-                    mem_mb = 120.0
-                    
-                # Power draw estimation
-                power_watts = 4.2 + np.random.normal(0.0, 0.2)
-                if diverged:
-                    power_watts += 2.0
-                    
+                    mem_mb = 0.0  # psutil unavailable -> report nothing, do not guess
+
+                # NOT MEASURED. This process has no power telemetry, so we record 0.0
+                # rather than synthesising a plausible-looking wattage. (This line used
+                # to fabricate `4.2 + N(0, 0.2)` W, which was then reported as if it had
+                # been measured on hardware.) See the docstring of register_and_patch_bridge.
+                power_watts = 0.0
+
                 free_energy = None
                 if hasattr(instance, "get_free_energy"):
                     try:
@@ -583,11 +594,13 @@ def calibrate_system() -> None:
         os.remove(db_file)
         
     collector = MetricsCollector(db_path=db_file)
-    print("[INFO] Simulating calibration workloads...")
-    
-    # Simulate a baseline sequence
+    print("[INFO] Writing SYNTHETIC placeholder rows to exercise the logging path.")
+    print("[WARNING] The latency/memory/power values below are MADE-UP constants used only")
+    print("[WARNING] to smoke-test the SQLite writer. They are NOT measurements of anything")
+    print("[WARNING] and must never be quoted as benchmark results.")
+
+    # Synthetic placeholder sequence -- NOT a measurement of any hardware or model.
     for i in range(10):
-        # 15ms latency, 150MB ram, 4.2W power
         collector.log_step_async(15.0 + np.random.normal(0.0, 0.5), 150.0 + np.random.normal(0.0, 1.0), 4.2 + np.random.normal(0.0, 0.05), False)
         time.sleep(0.05)
         
