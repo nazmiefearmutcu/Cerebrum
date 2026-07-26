@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+title: "CEREBRUM — grid-referenced annealed inference with local plasticity"
+message: "If you use this software, please cite it using the metadata below."
+type: software
+authors:
+  - family-names: Armutcu
+    given-names: "Nazmi Efe"
+    alias: nazmiefearmutcu
+    website: https://github.com/nazmiefearmutcu
+repository-code: https://github.com/nazmiefearmutcu/Cerebrum
+url: https://github.com/nazmiefearmutcu/Cerebrum
+license: MIT
+version: 0.0.1
+date-released: 2026-06-19
+keywords:
+  - predictive-coding
+  - backprop-free
+  - local-plasticity
+  - free-energy
+  - neuromorphic
+  - continual-learning
+  - numpy
+abstract: >-
+  CEREBRUM is a biologically plausible, backpropagation-free learning
+  architecture with fully local plasticity, targeted at neuromorphic edge
+  hardware. Written in pure NumPy — no autograd, no PyTorch or JAX — it
+  coordinates inference, routing and learning as noisy gradient descent on
+  a single unified free-energy functional across three physical timescales.
